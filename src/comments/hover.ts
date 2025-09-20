@@ -12,6 +12,15 @@ function truncate(str: string, n = 80) {
 	return str.length > n ? `${str.slice(0, n)}…` : str;
 }
 
+function stickTooltipToRight(wrapper: HTMLElement | null) {
+	if (!wrapper) return;
+	// Force right gutter anchoring and override CodeMirror's inline left
+	wrapper.style.setProperty("left", "auto", "important");
+	wrapper.style.setProperty("right", "8px", "important");
+	wrapper.style.setProperty("transform", "none", "important");
+	wrapper.style.setProperty("maxWidth", "min(520px, 70vw)", "important");
+}
+
 export const commentHover: HoverCallback = (view, pos, _side) => {
 	const cmView = view as unknown as EditorView;
 	const comments = getCommentsAtPos(cmView, pos);
@@ -20,82 +29,78 @@ export const commentHover: HoverCallback = (view, pos, _side) => {
 	// Root container picks up CodeMirror tooltip style and Obsidian look
 	const root = document.createElement("div");
 	root.className = "cm-comment-tooltip";
-	root.style.background = "var(--background-primary)";
-	root.style.border = "1px solid var(--background-modifier-border)";
-	root.style.borderRadius = "8px";
-	root.style.boxShadow = "0 4px 12px var(--shadow-s)";
-	root.style.padding = "12px";
 
 	if (comments.length === 1) {
 		const c = comments[0];
-		// Create a comment bubble layout
-		const commentBubble = document.createElement("div");
-		commentBubble.className = "comment-bubble";
+		// Use Obsidian setting-item layout for tidy single view
+		const wrap = document.createElement("div");
+		wrap.className = "setting-item mod-compact";
 
-		const header = document.createElement("div");
-		header.className = "comment-header";
+		const info = document.createElement("div");
+		info.className = "setting-item-info";
 
-		const author = document.createElement("div");
-		author.className = "comment-author";
-		author.textContent = c.author || "Anonymous";
+		const name = document.createElement("div");
+		name.className = "setting-item-name";
+		const parts = [
+			c.author,
+			c.createdAt ? new Date(c.createdAt).toLocaleString() : null,
+		].filter(Boolean) as string[];
+		name.textContent = parts.join(" • ") || "Comment";
 
-		const timestamp = document.createElement("div");
-		timestamp.className = "comment-timestamp";
-		timestamp.textContent = c.createdAt ? new Date(c.createdAt).toLocaleString() : "";
+		const desc = document.createElement("div");
+		desc.className = "setting-item-description";
+		desc.textContent = c.text || "(No text)";
 
-		header.append(author, timestamp);
-
-		const text = document.createElement("div");
-		text.className = "comment-text";
-		text.textContent = c.text || "(No text)";
-
-		commentBubble.append(header, text);
-		root.append(commentBubble);
+		info.append(name, desc);
+		wrap.append(info);
+		root.append(wrap);
 	} else {
-		// Use improved layout for multiple items
+		// Use Obsidian menu pattern for multiple items
 		const header = document.createElement("div");
-		header.className = "comments-header";
+		header.className = "cm-comment-meta is-text-muted";
 		header.textContent = `${comments.length} comments here`;
 
-		const container = document.createElement("div");
-		container.className = "comments-container";
+		const menu = document.createElement("div");
+		menu.className = "menu mod-compact";
 
 		for (const c of comments) {
 			const item = document.createElement("div");
-			item.className = "comment-item";
+			item.className = "menu-item";
 			item.dataset.commentId = c.id;
 
-			const commentBubble = document.createElement("div");
-			commentBubble.className = "comment-bubble";
+			const title = document.createElement("div");
+			title.className = "menu-item-title";
+			title.textContent = c.text ? truncate(c.text, 100) : c.id;
 
-			const commentHeader = document.createElement("div");
-			commentHeader.className = "comment-header";
+			const subtitle = document.createElement("div");
+			subtitle.className = "menu-item-shortcut";
+			const meta = [
+				c.author,
+				c.createdAt ? new Date(c.createdAt).toLocaleDateString() : null,
+			].filter(Boolean) as string[];
+			subtitle.textContent = meta.join(" • ");
 
-			const author = document.createElement("div");
-			author.className = "comment-author";
-			author.textContent = c.author || "Anonymous";
-
-			const timestamp = document.createElement("div");
-			timestamp.className = "comment-timestamp";
-			timestamp.textContent = c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "";
-
-			commentHeader.append(author, timestamp);
-
-			const text = document.createElement("div");
-			text.className = "comment-text";
-			text.textContent = c.text ? truncate(c.text, 100) : c.id;
-
-			commentBubble.append(commentHeader, text);
-			item.append(commentBubble);
-
+			item.append(title, subtitle);
 			item.addEventListener("click", () => {
 				scrollToComment(cmView, c.id);
 			});
 
-			container.appendChild(item);
+			menu.appendChild(item);
 		}
-		root.append(header, container);
+		root.append(header, menu);
 	}
+
+	// After mount, force the wrapper to the right gutter. Try a few frames in case CM repositions.
+	const scheduleRight = () => {
+		let tries = 0;
+		const tick = () => {
+			const wrapper = root.closest(".cm-tooltip") as HTMLElement | null;
+			stickTooltipToRight(wrapper);
+			if (++tries < 3) requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+	};
+	scheduleRight();
 
 	const tooltip: Tooltip = {
 		pos,
