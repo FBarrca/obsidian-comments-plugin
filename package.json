@@ -1,5 +1,5 @@
 {
-	"name": "obsidian-sample-template-onboarding",
+	"name": "obsidian-comments-plugin",
 	"version": "1.0.1",
 	"type": "module",
 	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
@@ -31,7 +31,8 @@
 		"obsidian": "latest",
 		"prettier": "^3.3.3",
 		"tslib": "^2.8.0",
-		"typescript": "^5.6.0"
+		"typescript": "^5.6.0",
+		"@codemirror/tooltip": "^0.19.16"
 	},
 	"lint-staged": {
 		"*.{ts,tsx,js}": [

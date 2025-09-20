@@ -1,6 +1,6 @@
 {
-	"id": "obsidian-sample-template-onboarding",
-	"name": "Sample Plugin",
+	"id": "obsidian-comments-plugin",
+	"name": "Comments AI Plugin",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Demonstrates some of the capabilities of the Obsidian API.",

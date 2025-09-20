@@ -1,7 +1,8 @@
-import "./types/md.d.ts";
+﻿import "./types/md.d.ts";
 import { Plugin } from "obsidian";
 import OnboardingDialog from "src/onboarding/OnboardingDialog";
 import ReleaseNotes from "src/onboarding/ReleaseNotes";
+import { registerCommentFeatures } from "./comments/obsidian";
 import { MyPluginSettings, DEFAULT_SETTINGS, SampleSettingTab } from "src/settings";
 
 export default class MyPlugin extends Plugin {
@@ -9,9 +10,8 @@ export default class MyPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		// This adds a settings tab so the user can configure various aspects of the plugin
+		registerCommentFeatures(this);
 		this.addSettingTab(new SampleSettingTab(this.app, this));
-		// First install / update checks
 		await this.maybeShowOnboardingOrReleaseNotes();
 	}
 
@@ -30,10 +30,10 @@ export default class MyPlugin extends Plugin {
 		const prev = this.settings.previousVersion;
 
 		if (!prev) {
-			// First install → show onboarding dialog
+			// First install -> show onboarding dialog
 			OnboardingDialog(this);
 		} else if (prev !== current) {
-			// Update → show release notes
+			// Update -> show release notes
 			ReleaseNotes(this);
 		}
 
