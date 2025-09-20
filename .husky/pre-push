@@ -1,0 +1,17 @@
+echo "[husky] Running pre-push checks: format:check + lint"
+
+# Use node directly to run the scripts
+node -e "
+const { execSync } = require('child_process');
+try {
+  console.log('Running format:check...');
+  execSync('npx prettier --check .', { stdio: 'inherit' });
+  console.log('Running lint...');
+  execSync('npx eslint "**/*.{ts,tsx,js}"', { stdio: 'inherit' });
+  console.log('All checks passed!');
+} catch (error) {
+  console.error('Check failed:', error.message);
+  process.exit(1);
+}
+"
+

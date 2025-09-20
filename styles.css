@@ -1,0 +1,39 @@
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
+*/
+
+/* Minimal styles for the multi-step Markdown dialog */
+.multi-step-markdown-dialog .msd-footer-center {
+	flex: 1 1 auto;
+	display: flex;
+	justify-content: center;
+}
+
+.multi-step-markdown-dialog .msd-progress {
+	display: flex;
+	gap: 8px;
+}
+
+.multi-step-markdown-dialog .msd-progress-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	background: var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.multi-step-markdown-dialog .msd-progress-dot.is-active {
+	background: var(--interactive-accent);
+}
+
+/* Remove default preview padding while keeping markdown styles */
+.multi-step-markdown-dialog .msd-body {
+	padding: 0 !important;
+}
+
+/* Rely on Obsidian defaults for header buttons (no extra styling) */

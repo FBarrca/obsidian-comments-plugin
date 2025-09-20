@@ -1,0 +1,45 @@
+{
+	"name": "obsidian-sample-template-onboarding",
+	"version": "1.0.1",
+	"type": "module",
+	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"postversion": "git push origin HEAD && git push origin --tags",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"lint": "eslint . --ext .ts,.tsx,.js",
+		"lint:fix": "eslint . --ext .ts,.tsx,.js --fix",
+		"lint-staged": "lint-staged",
+		"prepare": "husky"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^20.14.0",
+		"@typescript-eslint/eslint-plugin": "^8.0.0",
+		"@typescript-eslint/parser": "^8.0.0",
+		"builtin-modules": "^3.3.0",
+		"esbuild": "^0.25.10",
+		"eslint": "^9.0.0",
+		"globals": "^16.4.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^15.2.10",
+		"obsidian": "latest",
+		"prettier": "^3.3.3",
+		"tslib": "^2.8.0",
+		"typescript": "^5.6.0"
+	},
+	"lint-staged": {
+		"*.{ts,tsx,js}": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{json,css,md}": [
+			"prettier --write"
+		]
+	}
+}

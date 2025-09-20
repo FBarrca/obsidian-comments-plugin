@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+main.js
+*.zip
+coverage
+.obsidian
+.git
+
