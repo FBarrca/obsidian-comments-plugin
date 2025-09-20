@@ -37,3 +37,51 @@ If your plugin does not need CSS, delete this file.
 }
 
 /* Rely on Obsidian defaults for header buttons (no extra styling) */
+
+.cm-comment-anchor {
+	background: rgba(255, 200, 0, 0.18);
+	padding: 0.5px 0;
+	border-radius: 2px;
+	transition: background 120ms ease;
+}
+
+.cm-comment-anchor[data-comment-active="true"] {
+	outline: 1px solid rgba(255, 160, 0, 0.6);
+	outline-offset: 1px;
+	background: rgba(255, 210, 0, 0.25);
+}
+
+.cm-comment-anchor[data-comment-resolved="true"] {
+	opacity: 0.75;
+}
+
+.cm-comment-badge {
+	font-size: 0.9em;
+	line-height: 1;
+	padding: 0 2px;
+	margin-left: -1px;
+	user-select: none;
+}
+
+.cm-comment-badge-resolved {
+	opacity: 0.7;
+}
+
+.cm-tooltip.cm-comment-tooltip {
+	max-width: 360px;
+	white-space: pre-wrap;
+}
+
+.cm-comment-meta {
+	font-size: 0.78em;
+	opacity: 0.85;
+	margin-bottom: 4px;
+}
+
+.cm-comment-text {
+	font-size: 0.9em;
+}
+
+.cm-comment-list {
+	font-size: 0.88em;
+}

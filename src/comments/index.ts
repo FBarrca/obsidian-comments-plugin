@@ -3,22 +3,16 @@ import { KeyBinding, keymap } from "@codemirror/view";
 import { hoverTooltip } from "@codemirror/tooltip";
 import { commentField } from "./state";
 import { commentInteraction } from "./interaction";
-import { commentTheme } from "./theme";
 import { commentHover } from "./hover";
 import { defaultCommentKeymap } from "./navigation";
 
 export interface CommentsExtensionOptions {
 	hover?: boolean;
 	keymap?: false | KeyBinding[];
-	theme?: boolean;
 }
 
 export function commentsExtension(options?: CommentsExtensionOptions): Extension {
 	const extensions: Extension[] = [commentField, commentInteraction];
-
-	if (options?.theme !== false) {
-		extensions.push(commentTheme);
-	}
 
 	if (options?.hover !== false) {
 		extensions.push(hoverTooltip((view, pos, side) => commentHover(view, pos, side)));
@@ -35,7 +29,6 @@ export function commentsExtension(options?: CommentsExtensionOptions): Extension
 export { CommentBadge } from "./badge";
 export { commentField } from "./state";
 export { commentHover } from "./hover";
-export { commentTheme } from "./theme";
 export { commentInteraction } from "./interaction";
 export { defaultCommentKeymap } from "./navigation";
 export {
