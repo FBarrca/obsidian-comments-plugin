@@ -1,9 +1,10 @@
-﻿import { App, Editor, MarkdownView, Notice, Plugin } from "obsidian";
+import { App, Editor, MarkdownView, Notice, Plugin } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import {
 	CommentRange,
 	addCommentFromSelection,
 	commentsExtension,
+	commentHighlightColorCompartment,
 	getActiveComment,
 	getAllComments,
 	removeCommentCommand,
@@ -13,6 +14,8 @@ import {
 import { requestCommentText } from "./modal";
 import { jumpToNextComment, jumpToPreviousComment } from "./navigation";
 import type { CommentsExtensionOptions } from "./index";
+import { commentsIndicator } from "./commentsGutter";
+import { commentHighlightColorFacet, defaultCommentHighlightColor } from "./decorations";
 
 function getEditorView(editor: Editor | undefined): EditorView | null {
 	const cm = (editor as Editor & { cm?: EditorView })?.cm;
@@ -20,8 +23,14 @@ function getEditorView(editor: Editor | undefined): EditorView | null {
 }
 
 export function registerCommentFeatures(plugin: Plugin, options?: CommentsExtensionOptions) {
-	console.log("registerCommentFeatures", { options });
-	plugin.registerEditorExtension(commentsExtension(options));
+	const highlightColor = options?.highlightColor?.trim() || defaultCommentHighlightColor;
+	const extensionOptions: CommentsExtensionOptions = { ...options, highlightColor };
+	console.log("registerCommentFeatures", { options: extensionOptions });
+	plugin.registerEditorExtension(commentsExtension(extensionOptions));
+	plugin.registerEditorExtension(commentsIndicator());
+	// plugin.registerEditorExtension(lineNumbers());
+
+	updateCommentHighlightColor(plugin, highlightColor);
 
 	plugin.addCommand({
 		id: "comments-add",
@@ -141,6 +150,21 @@ export function registerCommentFeatures(plugin: Plugin, options?: CommentsExtens
 			}
 		},
 	});
+}
+
+export function updateCommentHighlightColor(plugin: Plugin, color?: string) {
+	const highlightColor = color?.trim() || defaultCommentHighlightColor;
+	const leaves = plugin.app.workspace.getLeavesOfType("markdown");
+	for (const leaf of leaves) {
+		const view = leaf.view as MarkdownView | null;
+		const cm = getEditorView(view?.editor);
+		if (!cm) continue;
+		cm.dispatch({
+			effects: commentHighlightColorCompartment.reconfigure(
+				commentHighlightColorFacet.of(highlightColor),
+			),
+		});
+	}
 }
 
 export function getAllCommentsForActiveFile(app: App): CommentRange[] {

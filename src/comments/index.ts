@@ -1,22 +1,25 @@
-﻿import type { Extension } from "@codemirror/state";
+import { Compartment } from "@codemirror/state";
+import type { Extension } from "@codemirror/state";
 import { KeyBinding, keymap } from "@codemirror/view";
-import { hoverTooltip } from "@codemirror/tooltip";
 import { commentField } from "./state";
 import { commentInteraction } from "./interaction";
-import { commentHover } from "./hover";
 import { defaultCommentKeymap } from "./navigation";
+import { commentHighlightColorFacet, defaultCommentHighlightColor } from "./decorations";
 
 export interface CommentsExtensionOptions {
-	hover?: boolean;
+	highlightColor?: string;
 	keymap?: false | KeyBinding[];
 }
 
-export function commentsExtension(options?: CommentsExtensionOptions): Extension {
-	const extensions: Extension[] = [commentField, commentInteraction];
+export const commentHighlightColorCompartment = new Compartment();
 
-	if (options?.hover !== false) {
-		extensions.push(hoverTooltip((view, pos, side) => commentHover(view, pos, side)));
-	}
+export function commentsExtension(options?: CommentsExtensionOptions): Extension {
+	const highlightColor = options?.highlightColor ?? defaultCommentHighlightColor;
+	const extensions: Extension[] = [
+		commentHighlightColorCompartment.of(commentHighlightColorFacet.of(highlightColor)),
+		commentField,
+		commentInteraction,
+	];
 
 	const keymapConfig = options?.keymap === undefined ? defaultCommentKeymap : options.keymap;
 	if (keymapConfig && keymapConfig.length) {
@@ -26,9 +29,7 @@ export function commentsExtension(options?: CommentsExtensionOptions): Extension
 	return extensions;
 }
 
-export { CommentBadge } from "./badge";
 export { commentField } from "./state";
-export { commentHover } from "./hover";
 export { commentInteraction } from "./interaction";
 export { defaultCommentKeymap } from "./navigation";
 export {

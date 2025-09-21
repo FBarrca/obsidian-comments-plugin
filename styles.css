@@ -1,4 +1,4 @@
-﻿/*
+/*
 
 This CSS file will be included with your plugin, and
 available in the app when your plugin is enabled.
@@ -39,79 +39,20 @@ If your plugin does not need CSS, delete this file.
 /* Rely on Obsidian defaults for header buttons (no extra styling) */
 
 .cm-comment-anchor {
-	background: rgba(255, 200, 0, 0.18);
+	background: var(--comment-highlight-bg, rgba(255, 200, 0, 0.18));
 	padding: 0.5px 0;
 	border-radius: 2px;
 	transition: background 120ms ease;
 }
 
 .cm-comment-anchor[data-comment-active="true"] {
-	outline: 1px solid rgba(255, 160, 0, 0.6);
+	outline: 1px solid var(--comment-highlight-outline, rgba(255, 160, 0, 0.6));
 	outline-offset: 1px;
-	background: rgba(255, 210, 0, 0.25);
+	background: var(--comment-highlight-bg-active, rgba(255, 210, 0, 0.25));
 }
 
 .cm-comment-anchor[data-comment-resolved="true"] {
 	opacity: 0.75;
-}
-
-.cm-comment-badge {
-	font-size: 0.9em;
-	line-height: 1;
-	padding: 0 2px;
-	margin-left: -1px;
-	user-select: none;
-}
-
-.cm-comment-badge-resolved {
-	opacity: 0.7;
-}
-
-/* Override ALL CodeMirror tooltip styling to remove white square */
-.cm-tooltip-hover,
-.cm-tooltip,
-.cm-tooltip-section {
-	background: transparent !important;
-	border: none !important;
-	box-shadow: none !important;
-}
-
-/* Style the comment tooltip content specifically */
-.cm-comment-tooltip {
-	min-width: 280px;
-	max-width: 420px;
-	white-space: normal;
-	padding: 12px;
-	background: var(--background-primary) !important;
-	border: 1px solid var(--background-modifier-border) !important;
-	border-radius: 8px !important;
-	box-shadow: 0 4px 12px var(--shadow-s) !important;
-	position: relative;
-	z-index: 1000;
-}
-
-/* Even more specific override for when cm-tooltip-section is on the same element */
-.cm-tooltip-section.cm-comment-tooltip {
-	background: var(--background-primary) !important;
-	border: 1px solid var(--background-modifier-border) !important;
-	border-radius: 8px !important;
-	box-shadow: 0 4px 12px var(--shadow-s) !important;
-}
-
-/* Remove any inherited background from parent elements */
-.cm-tooltip-hover .cm-tooltip .cm-tooltip-section,
-.cm-tooltip-hover .cm-tooltip .cm-comment-tooltip {
-	background: transparent !important;
-}
-
-/* Ultimate specificity override - targets the exact structure */
-.cm-tooltip-hover .cm-tooltip .cm-tooltip-section.cm-comment-tooltip,
-.cm-tooltip .cm-tooltip-section.cm-comment-tooltip,
-div[class*="cm-tooltip"] div[class*="cm-tooltip"] div[class*="cm-comment-tooltip"] {
-	background: var(--background-primary) !important;
-	border: 1px solid var(--background-modifier-border) !important;
-	border-radius: 8px !important;
-	box-shadow: 0 4px 12px var(--shadow-s) !important;
 }
 
 /* Comment bubble styling */
@@ -181,4 +122,62 @@ div[class*="cm-tooltip"] div[class*="cm-tooltip"] div[class*="cm-comment-tooltip
 
 .cm-gutters-after {
 	border-left-width: 0 !important;
+}
+
+.cm-commentIndicator-marker {
+	display: inline-flex;
+	align-items: flex-start;
+	gap: 8px;
+	color: var(--text-muted);
+}
+
+.cm-commentIndicator-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 999px;
+	background: var(--background-modifier-hover);
+	color: inherit;
+	transition:
+		background 120ms ease,
+		color 120ms ease,
+		box-shadow 120ms ease;
+	cursor: pointer;
+}
+
+.cm-commentIndicator-marker:hover .cm-commentIndicator-icon {
+	background: var(--background-modifier-active-hover);
+}
+
+.cm-commentIndicator-marker.is-open .cm-commentIndicator-icon {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	box-shadow: 0 2px 6px var(--shadow-s);
+}
+
+.cm-commentIndicator-thread {
+	display: none;
+	min-width: 220px;
+	max-width: 320px;
+	padding: 12px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: 0 4px 12px var(--shadow-s);
+	color: var(--text-normal);
+	white-space: normal;
+}
+
+.cm-commentIndicator-marker.is-open .cm-commentIndicator-thread {
+	display: block;
+}
+
+.cm-commentIndicator-thread .comment-bubble {
+	margin-bottom: 12px;
+}
+
+.cm-commentIndicator-thread .comment-bubble:last-child {
+	margin-bottom: 0;
 }

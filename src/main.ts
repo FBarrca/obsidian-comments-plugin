@@ -1,8 +1,8 @@
-﻿import "./types/md.d.ts";
+import "./types/md.d.ts";
 import { Plugin } from "obsidian";
 import OnboardingDialog from "src/onboarding/OnboardingDialog";
 import ReleaseNotes from "src/onboarding/ReleaseNotes";
-import { registerCommentFeatures } from "./comments/obsidian";
+import { registerCommentFeatures, updateCommentHighlightColor } from "./comments/obsidian";
 import { MyPluginSettings, DEFAULT_SETTINGS, SampleSettingTab } from "src/settings";
 
 export default class MyPlugin extends Plugin {
@@ -10,8 +10,9 @@ export default class MyPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		registerCommentFeatures(this);
+		registerCommentFeatures(this, { highlightColor: this.settings.highlightColor });
 		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.refreshHighlightColor();
 		await this.maybeShowOnboardingOrReleaseNotes();
 	}
 
@@ -23,6 +24,11 @@ export default class MyPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		this.refreshHighlightColor();
+	}
+
+	refreshHighlightColor() {
+		updateCommentHighlightColor(this, this.settings.highlightColor);
 	}
 
 	private async maybeShowOnboardingOrReleaseNotes() {

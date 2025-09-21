@@ -1,6 +1,10 @@
-﻿import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
+import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { MapMode, StateField } from "@codemirror/state";
-import { buildDecorations } from "./decorations";
+import {
+	buildDecorations,
+	commentHighlightColorFacet,
+	defaultCommentHighlightColor,
+} from "./decorations";
 import {
 	CommentRange,
 	addOrUpdateComment,
@@ -15,6 +19,7 @@ export interface CommentState {
 	byId: CommentIndex;
 	decos: DecorationSet;
 	activeId: string | null;
+	highlightColor: string;
 }
 
 export function indexToArray(idx: CommentIndex): CommentRange[] {
@@ -24,14 +29,22 @@ export function indexToArray(idx: CommentIndex): CommentRange[] {
 }
 
 export const commentField = StateField.define<CommentState>({
-	create() {
-		return { byId: new Map(), decos: Decoration.none, activeId: null };
+	create(state) {
+		const highlightColor =
+			state.facet(commentHighlightColorFacet) ?? defaultCommentHighlightColor;
+		return { byId: new Map(), decos: Decoration.none, activeId: null, highlightColor };
 	},
 	update(curr, tr) {
 		const docLen = tr.newDoc.length;
 		let activeId = curr.activeId;
 		let needsRebuild = tr.docChanged;
 		let byId: CommentIndex;
+		const highlightColor =
+			tr.state.facet(commentHighlightColorFacet) ?? defaultCommentHighlightColor;
+
+		if (highlightColor !== curr.highlightColor) {
+			needsRebuild = true;
+		}
 
 		if (tr.docChanged) {
 			byId = new Map<string, CommentRange>();
@@ -84,14 +97,15 @@ export const commentField = StateField.define<CommentState>({
 				activeId,
 				docLength: docLen,
 				effects: effectSummary,
+				highlightColor,
 			});
 		}
 
 		const decos = needsRebuild
-			? buildDecorations(docLen, indexToArray(byId), activeId)
+			? buildDecorations(docLen, indexToArray(byId), activeId, highlightColor)
 			: curr.decos;
 
-		return { byId, decos, activeId };
+		return { byId, decos, activeId, highlightColor };
 	},
 	provide: (field) => [EditorView.decorations.from(field, (state) => state.decos)],
 });

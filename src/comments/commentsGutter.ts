@@ -10,6 +10,7 @@ import { BlockInfo, EditorView, ViewUpdate, WidgetType } from "@codemirror/view"
 import { activeGutters, gutters, GutterMarker } from "./rightGutter";
 import { setIcon } from "obsidian";
 import { addOrUpdateComment, removeComment } from "./model";
+import type { CommentRange } from "./model";
 import { commentField, indexToArray } from "./state";
 
 type Handlers = {
@@ -98,6 +99,129 @@ function maxCommentNumber(lines: number) {
 	let last = 9;
 	while (last < lines) last = last * 10 + 9;
 	return last;
+}
+
+const COMMENT_MARKER_SELECTOR = ".cm-commentIndicator-marker";
+const COMMENT_THREAD_SELECTOR = ".cm-commentIndicator-thread";
+const COMMENT_THREAD_OPEN_CLASS = "is-open";
+
+function getCommentsForLineRange(state: EditorState, from: number, to: number): CommentRange[] {
+	const commentState = state.field(commentField, false);
+	if (!commentState) return [];
+	const matches: CommentRange[] = [];
+	for (const comment of indexToArray(commentState.byId)) {
+		if (comment.from > to) continue;
+		if (comment.to < from) continue;
+		matches.push(comment);
+	}
+	matches.sort((a, b) => a.from - b.from);
+	return matches;
+}
+
+function closeThreadElement(markerEl: HTMLElement) {
+	markerEl.classList.remove(COMMENT_THREAD_OPEN_CLASS);
+	const existing = markerEl.querySelector<HTMLElement>(COMMENT_THREAD_SELECTOR);
+	existing?.remove();
+}
+
+function closeAllThreads(root: HTMLElement, except?: HTMLElement) {
+	const openMarkers = root.querySelectorAll<HTMLElement>(
+		`${COMMENT_MARKER_SELECTOR}.${COMMENT_THREAD_OPEN_CLASS}`,
+	);
+	openMarkers.forEach((el) => {
+		if (el === except) return;
+		closeThreadElement(el);
+	});
+}
+
+function renderThread(comments: CommentRange[]): HTMLElement {
+	const container = document.createElement("div");
+	container.className = "cm-commentIndicator-thread";
+	for (const comment of comments) {
+		container.appendChild(renderThreadItem(comment));
+	}
+	return container;
+}
+
+function renderThreadItem(comment: CommentRange): HTMLElement {
+	const item = document.createElement("div");
+	item.className = "cm-commentIndicator-item comment-bubble";
+	item.dataset.commentId = comment.id;
+	if (comment.resolved) {
+		item.dataset.commentResolved = "true";
+	}
+
+	const header = document.createElement("div");
+	header.className = "comment-header";
+
+	const author = document.createElement("span");
+	author.className = "comment-author";
+	author.textContent = comment.author?.trim() || "Comment";
+	header.appendChild(author);
+
+	const timestampText = formatTimestamp(comment.createdAt);
+	if (timestampText) {
+		const time = document.createElement("span");
+		time.className = "comment-timestamp";
+		time.textContent = timestampText;
+		header.appendChild(time);
+	}
+
+	if (comment.resolved) {
+		const resolvedLabel = document.createElement("span");
+		resolvedLabel.className = "comment-timestamp";
+		resolvedLabel.textContent = "Resolved";
+		header.appendChild(resolvedLabel);
+	}
+
+	item.appendChild(header);
+
+	const body = document.createElement("p");
+	body.className = "comment-text";
+	body.textContent = comment.text?.trim() || "(No comment text)";
+	item.appendChild(body);
+
+	return item;
+}
+
+function formatTimestamp(value: CommentRange["createdAt"]): string | null {
+	if (value === undefined || value === null) return null;
+	const date = value instanceof Date ? value : new Date(value);
+	if (Number.isNaN(date.getTime())) return null;
+	return date.toLocaleString();
+}
+
+function handleCommentMarkerPointerDown(view: EditorView, line: BlockInfo, event: Event): boolean {
+	const target = event.target as HTMLElement | null;
+	if (!target) return false;
+
+	if (target.closest(COMMENT_THREAD_SELECTOR)) {
+		return false;
+	}
+
+	const markerEl = target.closest<HTMLElement>(COMMENT_MARKER_SELECTOR);
+	if (!markerEl) return false;
+
+	event.stopPropagation();
+
+	if (markerEl.classList.contains(COMMENT_THREAD_OPEN_CLASS)) {
+		closeThreadElement(markerEl);
+		return true;
+	}
+
+	const docLine = view.state.doc.lineAt(line.from);
+	const comments = getCommentsForLineRange(view.state, docLine.from, docLine.to);
+	if (!comments.length) {
+		closeThreadElement(markerEl);
+		return true;
+	}
+
+	closeAllThreads(view.dom, markerEl);
+
+	markerEl.appendChild(renderThread(comments));
+	markerEl.classList.add(COMMENT_THREAD_OPEN_CLASS);
+
+	return true;
 }
 
 /* -------------------------------------------
@@ -213,9 +337,24 @@ const commentsIndicatorGutter = activeGutters.compute([commentsIndicatorConfig],
 
 /// Create a comments indicator gutter extension.
 export function commentsIndicator(config: CommentsIndicatorConfig = {}): Extension {
+	const baseHandlers = config.domEventHandlers ?? {};
+	const existingPointerDown = baseHandlers.pointerdown;
+	const domHandlers: Handlers = {
+		...baseHandlers,
+		pointerdown(view, line, event) {
+			if (handleCommentMarkerPointerDown(view, line, event)) {
+				return true;
+			}
+			return existingPointerDown ? existingPointerDown(view, line, event) : false;
+		},
+	};
+
 	return [
-		commentLineMarkersField, // <- derives markers from comment state
-		commentsIndicatorConfig.of(config), // <- config facet
+		commentLineMarkersField,
+		commentsIndicatorConfig.of({
+			...config,
+			domEventHandlers: domHandlers,
+		}),
 		gutters(),
 		commentsIndicatorGutter,
 	];

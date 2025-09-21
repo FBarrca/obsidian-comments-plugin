@@ -1,19 +1,23 @@
 import { App, ButtonComponent, Notice, Plugin, PluginSettingTab, Setting, setIcon } from "obsidian";
 import OnboardingDialog from "src/onboarding/OnboardingDialog";
 import ReleaseNotes from "src/onboarding/ReleaseNotes";
+import { defaultCommentHighlightColor } from "src/comments/decorations";
 
 export interface MyPluginSettings {
 	mySetting: string;
+	highlightColor: string;
 	previousVersion?: string;
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
 	mySetting: "default",
+	highlightColor: defaultCommentHighlightColor,
 };
 
 type PluginWithSettings = Plugin & {
 	settings: MyPluginSettings;
 	saveSettings: () => Promise<void>;
+	refreshHighlightColor: () => void;
 };
 
 export function renderSettingsHeader(containerEl: HTMLElement, plugin: PluginWithSettings) {
@@ -101,6 +105,18 @@ export class SampleSettingTab extends PluginSettingTab {
 						this.plugin.settings.mySetting = value;
 						await this.plugin.saveSettings();
 					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Highlight color")
+			.setDesc("Controls the color used for comment highlights.")
+			.addColorPicker((picker) =>
+				picker.setValue(this.plugin.settings.highlightColor).onChange(async (value) => {
+					const next = value || defaultCommentHighlightColor;
+					this.plugin.settings.highlightColor = next;
+					await this.plugin.saveSettings();
+					this.plugin.refreshHighlightColor();
+				}),
 			);
 	}
 }
