@@ -1,6 +1,7 @@
 import { EditorState, Extension, Facet, RangeSet, combineConfig } from "@codemirror/state";
 import { activeGutters, gutters, GutterMarker } from "./rightGutter";
 import { BlockInfo, EditorView, ViewUpdate, WidgetType } from "@codemirror/view";
+import { setIcon } from "obsidian";
 
 type Handlers = {
 	[event: string]: (view: EditorView, line: BlockInfo, event: Event) => boolean;
@@ -29,7 +30,11 @@ class CommentsIndicatorMarker extends GutterMarker {
 	}
 
 	toDOM() {
-		return document.createTextNode(this.number);
+		const span = document.createElement("span");
+		setIcon(span, "message-square-text");
+		span.title = "Add a comment";
+		return span;
+		// return document.createTextNode(this.number);
 	}
 }
 
