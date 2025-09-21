@@ -178,3 +178,7 @@ div[class*="cm-tooltip"] div[class*="cm-tooltip"] div[class*="cm-comment-tooltip
 	opacity: 0.85;
 	margin-bottom: 4px;
 }
+
+.cm-gutters-after {
+	border-left-width: 0 !important;
+}
