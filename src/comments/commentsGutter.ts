@@ -104,6 +104,8 @@ function maxCommentNumber(lines: number) {
 const COMMENT_MARKER_SELECTOR = ".cm-commentIndicator-marker";
 const COMMENT_THREAD_SELECTOR = ".cm-commentIndicator-thread";
 const COMMENT_THREAD_OPEN_CLASS = "is-open";
+const COMMENT_THREAD_FLOATING_CLASS = "cm-commentIndicator-threadFloating";
+const openThreadCleanup = new WeakMap<HTMLElement, () => void>();
 
 function getCommentsForLineRange(state: EditorState, from: number, to: number): CommentRange[] {
 	const commentState = state.field(commentField, false);
@@ -120,6 +122,11 @@ function getCommentsForLineRange(state: EditorState, from: number, to: number): 
 
 function closeThreadElement(markerEl: HTMLElement) {
 	markerEl.classList.remove(COMMENT_THREAD_OPEN_CLASS);
+	const cleanup = openThreadCleanup.get(markerEl);
+	if (cleanup) {
+		openThreadCleanup.delete(markerEl);
+		cleanup();
+	}
 	const existing = markerEl.querySelector<HTMLElement>(COMMENT_THREAD_SELECTOR);
 	existing?.remove();
 }
@@ -131,6 +138,74 @@ function closeAllThreads(root: HTMLElement, except?: HTMLElement) {
 	openMarkers.forEach((el) => {
 		if (el === except) return;
 		closeThreadElement(el);
+	});
+}
+
+function positionThreadForMarker(view: EditorView, markerEl: HTMLElement, threadEl: HTMLElement) {
+	threadEl.classList.add(COMMENT_THREAD_FLOATING_CLASS);
+	threadEl.style.display = "block";
+	threadEl.style.position = "fixed";
+	threadEl.style.zIndex = "var(--layer-popover, 100)";
+	threadEl.style.pointerEvents = "auto";
+
+	const spacing = 12;
+	const viewportPadding = 12;
+
+	function reposition() {
+		if (!markerEl.isConnected) {
+			closeThreadElement(markerEl);
+			return;
+		}
+
+		const markerRect = markerEl.getBoundingClientRect();
+		const overlayWidth = threadEl.offsetWidth || threadEl.getBoundingClientRect().width;
+		const overlayHeight = threadEl.offsetHeight || threadEl.getBoundingClientRect().height;
+		const viewportWidth = window.innerWidth;
+		const viewportHeight = window.innerHeight;
+		const isRTL = window.getComputedStyle(markerEl).direction === "rtl";
+
+		let left: number;
+		if (isRTL) {
+			left = markerRect.left - spacing - overlayWidth;
+			if (left < viewportPadding) {
+				left = markerRect.right + spacing;
+			}
+		} else {
+			left = markerRect.right + spacing;
+			if (left + overlayWidth > viewportWidth - viewportPadding) {
+				left = markerRect.left - spacing - overlayWidth;
+			}
+		}
+		left = Math.max(
+			viewportPadding,
+			Math.min(left, viewportWidth - viewportPadding - overlayWidth),
+		);
+		threadEl.style.left = `${left}px`;
+		threadEl.style.right = "auto";
+
+		let top = markerRect.top;
+		if (top + overlayHeight > viewportHeight - viewportPadding) {
+			top = viewportHeight - viewportPadding - overlayHeight;
+		}
+		top = Math.max(viewportPadding, top);
+		threadEl.style.top = `${top}px`;
+	}
+
+	const onViewScroll = () => reposition();
+	const onWindowScroll = () => reposition();
+
+	document.body.appendChild(threadEl);
+	reposition();
+
+	view.scrollDOM.addEventListener("scroll", onViewScroll, { passive: true });
+	window.addEventListener("resize", reposition);
+	window.addEventListener("scroll", onWindowScroll, { passive: true });
+
+	openThreadCleanup.set(markerEl, () => {
+		view.scrollDOM.removeEventListener("scroll", onViewScroll);
+		window.removeEventListener("resize", reposition);
+		window.removeEventListener("scroll", onWindowScroll);
+		threadEl.remove();
 	});
 }
 
@@ -218,7 +293,8 @@ function handleCommentMarkerPointerDown(view: EditorView, line: BlockInfo, event
 
 	closeAllThreads(view.dom, markerEl);
 
-	markerEl.appendChild(renderThread(comments));
+	const threadEl = renderThread(comments);
+	positionThreadForMarker(view, markerEl, threadEl);
 	markerEl.classList.add(COMMENT_THREAD_OPEN_CLASS);
 
 	return true;

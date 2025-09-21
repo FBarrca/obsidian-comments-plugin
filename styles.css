@@ -169,6 +169,12 @@ If your plugin does not need CSS, delete this file.
 	color: var(--text-normal);
 	white-space: normal;
 }
+.cm-commentIndicator-threadFloating {
+	display: block;
+	position: fixed;
+	max-height: calc(100vh - 24px);
+	overflow-y: auto;
+}
 
 .cm-commentIndicator-marker.is-open .cm-commentIndicator-thread {
 	display: block;
