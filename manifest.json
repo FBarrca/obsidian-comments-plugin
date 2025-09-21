@@ -3,9 +3,9 @@
 	"name": "Comments AI Plugin",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
+	"description": "Add inline comments and discussion threads to your notes.",
 	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"authorUrl": "https://github.com/FBarrca/",
+	"fundingUrl": "https://www.buymeacoffee.com/FBarrCa",
 	"isDesktopOnly": false
 }
