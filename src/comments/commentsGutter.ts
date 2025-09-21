@@ -49,8 +49,7 @@ class CommentsIndicatorMarker extends GutterMarker {
 		container.append(icon);
 
 		const safeCount = Math.max(0, this.count);
-		const title = safeCount > 1 ? `${safeCount} comments` : "Add a comment";
-		container.title = title;
+		const title = safeCount > 1 ? `${safeCount} comments` : "One comment";
 		container.setAttribute("aria-label", title);
 		container.dataset.commentCount = safeCount.toString();
 
