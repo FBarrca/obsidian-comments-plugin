@@ -95,19 +95,6 @@ export class SampleSettingTab extends PluginSettingTab {
 		renderSettingsHeader(containerEl, this.plugin);
 
 		new Setting(containerEl)
-			.setName("Setting #1")
-			.setDesc("It's a secret")
-			.addText((text) =>
-				text
-					.setPlaceholder("Enter your secret")
-					.setValue(this.plugin.settings.mySetting)
-					.onChange(async (value) => {
-						this.plugin.settings.mySetting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
 			.setName("Highlight color")
 			.setDesc("Controls the color used for comment highlights.")
 			.addColorPicker((picker) =>
