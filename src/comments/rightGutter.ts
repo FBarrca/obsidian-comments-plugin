@@ -1,4 +1,4 @@
-﻿import {
+import {
 	combineConfig,
 	MapMode,
 	Facet,
@@ -63,7 +63,7 @@ type Handlers = {
 	[event: string]: (view: EditorView, line: BlockInfo, event: Event) => boolean;
 };
 
-interface GutterConfig {
+export interface GutterConfig {
 	/// An extra CSS class to be added to the wrapper (`cm-gutter`)
 	/// element.
 	class?: string;
@@ -111,7 +111,7 @@ const defaults = {
 	side: "before" as const,
 };
 
-const activeGutters = Facet.define<Required<GutterConfig>>();
+export const activeGutters = Facet.define<Required<GutterConfig>>();
 
 /// Define an editor gutter. The order in which the gutters appear is
 /// determined by their extension priority.
