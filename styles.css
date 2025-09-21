@@ -1,4 +1,4 @@
-/*
+﻿/*
 
 This CSS file will be included with your plugin, and
 available in the app when your plugin is enabled.
@@ -129,6 +129,25 @@ If your plugin does not need CSS, delete this file.
 	align-items: flex-start;
 	gap: 8px;
 	color: var(--text-muted);
+	position: relative;
+	overflow: visible;
+}
+
+.cm-editor-wrapper {
+	position: relative;
+	overflow: visible;
+}
+
+.cm-thread-layer {
+	position: absolute;
+	inset: 0;
+	overflow: visible;
+	pointer-events: none;
+	z-index: var(--layer-popover, 95);
+}
+
+.cm-thread-layer .cm-commentIndicator-thread {
+	pointer-events: auto;
 }
 
 .cm-commentIndicator-icon {
@@ -158,9 +177,12 @@ If your plugin does not need CSS, delete this file.
 }
 
 .cm-commentIndicator-thread {
-	display: none;
+	position: absolute;
+	top: 0;
 	min-width: 220px;
 	max-width: 320px;
+	max-height: calc(100vh - 24px);
+	overflow-y: auto;
 	padding: 12px;
 	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
@@ -168,16 +190,7 @@ If your plugin does not need CSS, delete this file.
 	box-shadow: 0 4px 12px var(--shadow-s);
 	color: var(--text-normal);
 	white-space: normal;
-}
-.cm-commentIndicator-threadFloating {
-	display: block;
-	position: fixed;
-	max-height: calc(100vh - 24px);
-	overflow-y: auto;
-}
-
-.cm-commentIndicator-marker.is-open .cm-commentIndicator-thread {
-	display: block;
+	z-index: var(--layer-popover, 100);
 }
 
 .cm-commentIndicator-thread .comment-bubble {
