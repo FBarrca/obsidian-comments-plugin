@@ -9,7 +9,8 @@ const COMMENT_THREAD_SELECTOR = ".cm-commentIndicator-thread";
 const COMMENT_THREAD_OPEN_CLASS = "is-open";
 const THREAD_VIEWPORT_PADDING = 12;
 const THREAD_INLINE_SPACING = 12;
-const EDITOR_WRAPPER_CLASS = "cm-editor-wrapper";
+const EDITOR_WRAPPER_CLASS = "cm-editor-wrapper"; // Editor pane
+const EDITOR_CLASS = "cm-contentContainer"; // Editor scroller
 const THREAD_LAYER_CLASS = "cm-thread-layer";
 const openThreadCleanup = new WeakMap<HTMLElement, () => void>();
 
@@ -83,6 +84,38 @@ function ensureThreadLayer(view: EditorView): HTMLElement | null {
 		wrapper.appendChild(layer);
 	}
 	return layer;
+}
+
+function getmarginRight(view: EditorView) {
+	const editorEl = view.dom as HTMLElement;
+	const contentContainerEl = editorEl.querySelector(`.${EDITOR_CLASS}`);
+	if (!contentContainerEl) {
+		return 0;
+	}
+	return (
+		(editorEl.getBoundingClientRect().width -
+			contentContainerEl.getBoundingClientRect().width) /
+		2
+	);
+}
+
+function logEditorWrapperWidths(view: EditorView) {
+	const editorEl = view.dom as HTMLElement;
+	console.log("editorEl", editorEl);
+
+	const contentContainerEl = editorEl.querySelector(`.${EDITOR_CLASS}`);
+	if (!contentContainerEl) {
+		console.log("contentContainerEl not found");
+		return;
+	}
+	const contentContainerElWidth = contentContainerEl.getBoundingClientRect().width;
+	const editorWidth = editorEl.getBoundingClientRect().width;
+	console.log(
+		"[comments] widths:",
+		`editorWidth=${Math.round(editorWidth)}px`,
+		`contentContainerElWidth=${Math.round(contentContainerElWidth)}px`,
+		`margin_right=${Math.round((editorWidth - contentContainerElWidth) / 2)}px`,
+	);
 }
 
 function subscribeToWorkspaceResize(listener: () => void): WorkspaceResizeBinding | null {
@@ -171,26 +204,54 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, threadEl: 
 	threadEl.style.display = "block";
 	layer.appendChild(threadEl);
 
-	const reposition = () => updateThreadPlacement(markerEl, threadEl, layer);
+	const reposition = () => {
+		const marginRight = getmarginRight(view);
+		if (marginRight > 0) {
+			const targetWidth = Math.max(0, Math.floor(marginRight));
+			// threadEl.style.minWidth = "0px";
+			// threadEl.style.maxWidth = "none";
+			threadEl.style.width = `${targetWidth}px`;
+		} else {
+			threadEl.style.width = "";
+			// 	threadEl.style.maxWidth = "";
+			// 	threadEl.style.minWidth = "";
+		}
+		updateThreadPlacement(markerEl, threadEl, layer);
+	};
+	const logWidths = () => logEditorWrapperWidths(view);
+	const handleResize = () => {
+		reposition();
+		logWidths();
+	};
 	const onScroll = () => reposition();
 
 	reposition();
-	requestAnimationFrame(reposition);
+	logWidths();
+	requestAnimationFrame(() => {
+		reposition();
+		logWidths();
+	});
 
 	const resizeObserver =
-		typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => reposition()) : null;
+		typeof ResizeObserver !== "undefined"
+			? new ResizeObserver(() => {
+					reposition();
+					logWidths();
+				})
+			: null;
 	if (resizeObserver) {
 		const wrapper = layer.parentElement;
 		if (wrapper) resizeObserver.observe(wrapper);
 		resizeObserver.observe(layer);
+		resizeObserver.observe(view.dom);
 	}
 
 	view.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
 	window.addEventListener("scroll", onScroll, { passive: true });
 
-	const workspaceBinding = subscribeToWorkspaceResize(reposition);
+	const workspaceBinding = subscribeToWorkspaceResize(handleResize);
 	if (!workspaceBinding) {
-		window.addEventListener("resize", reposition);
+		window.addEventListener("resize", handleResize);
 	}
 
 	let connectionFrame: number | null = null;
@@ -210,7 +271,7 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, threadEl: 
 		if (workspaceBinding) {
 			workspaceBinding.workspace.offref(workspaceBinding.ref);
 		} else {
-			window.removeEventListener("resize", reposition);
+			window.removeEventListener("resize", handleResize);
 		}
 		if (connectionFrame !== null) {
 			cancelAnimationFrame(connectionFrame);

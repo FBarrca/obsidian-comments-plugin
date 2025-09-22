@@ -182,7 +182,7 @@ If your plugin does not need CSS, delete this file.
 .cm-commentIndicator-thread {
 	position: absolute;
 	top: 0;
-	min-width: 220px;
+	/* min-width: 220px; */
 	max-width: 320px;
 	max-height: calc(100vh - 24px);
 	overflow-y: auto;
