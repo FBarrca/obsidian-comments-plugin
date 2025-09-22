@@ -1,7 +1,7 @@
 import { App, ButtonComponent, Notice, Plugin, PluginSettingTab, Setting, setIcon } from "obsidian";
-import OnboardingDialog from "src/onboarding/OnboardingDialog";
-import ReleaseNotes from "src/onboarding/ReleaseNotes";
-import { defaultCommentHighlightColor } from "src/comments/decorations";
+import OnboardingDialog from "@/onboarding/OnboardingDialog";
+import ReleaseNotes from "@/onboarding/ReleaseNotes";
+import { defaultCommentHighlightColor } from "@/comments/decorations";
 
 export interface MyPluginSettings {
 	mySetting: string;

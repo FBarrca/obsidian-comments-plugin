@@ -1,9 +1,10 @@
 import "./types/md.d.ts";
 import { Plugin } from "obsidian";
-import OnboardingDialog from "src/onboarding/OnboardingDialog";
-import ReleaseNotes from "src/onboarding/ReleaseNotes";
+import OnboardingDialog from "@/onboarding/OnboardingDialog";
+import ReleaseNotes from "@/onboarding/ReleaseNotes";
 import { registerCommentFeatures, updateCommentHighlightColor } from "./comments/obsidian";
-import { MyPluginSettings, DEFAULT_SETTINGS, SampleSettingTab } from "src/settings";
+import { MyPluginSettings, DEFAULT_SETTINGS, SampleSettingTab } from "@/settings";
+import { showSvelteExample } from "./svelte-integration";
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
@@ -11,6 +12,15 @@ export default class MyPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		registerCommentFeatures(this, { highlightColor: this.settings.highlightColor });
+
+		// Add command to show Svelte example
+		this.addCommand({
+			id: "show-svelte-example",
+			name: "Show Svelte integration example",
+			callback: () => {
+				showSvelteExample(this.app);
+			},
+		});
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 		this.refreshHighlightColor();
 		await this.maybeShowOnboardingOrReleaseNotes();
