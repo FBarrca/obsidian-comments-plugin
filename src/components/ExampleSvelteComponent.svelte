@@ -38,12 +38,12 @@
 </div>
 
 <style>
-	.svelte-component h3 {
+	h3 {
 		margin: 0 0 0.5rem 0;
 		color: var(--text-normal);
 	}
 
-	.svelte-component p {
+	p {
 		margin: 0.5rem 0;
 		color: var(--text-muted);
 	}

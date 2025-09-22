@@ -1,4 +1,5 @@
 import "./types/md.d.ts";
+import "./style.css";
 import { Plugin } from "obsidian";
 import OnboardingDialog from "@/onboarding/OnboardingDialog";
 import ReleaseNotes from "@/onboarding/ReleaseNotes";
