@@ -10,10 +10,13 @@
 
 - Node.js: use current LTS (Node 18+ recommended).
 - **Package manager: npm** (required for this sample - `package.json` defines npm scripts and dependencies).
-- **Bundler: esbuild** (required for this sample - `esbuild.config.mjs` and build scripts depend on it). Alternative bundlers like Rollup or webpack are acceptable for other projects if they bundle all external dependencies into `main.js`.
+- **Bundler: Vite** (configured in `vite.config.mjs` with Svelte support and esbuild for fast builds).
+- **UI Framework: Svelte 5** (with runes support) for reactive components.
+- **Code formatting: Prettier** (configured in `.prettierrc.json` with Svelte plugin support).
+- **Linting: ESLint** (configured in `eslint.config.js` with TypeScript and Svelte support).
 - Types: `obsidian` type definitions.
 
-**Note**: This sample project has specific technical dependencies on npm and esbuild. If you're creating a plugin from scratch, you can choose different tools, but you'll need to replace the build configuration accordingly.
+**Note**: This project uses Vite instead of esbuild for better Svelte integration and development experience. All external dependencies are bundled into `main.js` for Obsidian compatibility.
 
 ### Install
 
@@ -33,12 +36,145 @@ npm run dev
 npm run build
 ```
 
-## Linting
+**Build process:**
 
-- To use eslint install eslint from terminal: `npm install -g eslint`
-- To use eslint to analyze this project use this command: `eslint main.ts`
-- eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder: `eslint ./src/`
+1. TypeScript compilation check (`tsc -noEmit -skipLibCheck`)
+2. Vite bundling with Svelte preprocessing
+3. Automatic file copying (`main.cjs` → `main.js`, `styles.css` → `styles.css`)
+4. Cleanup of temporary `dist/` directory
+
+**Output files:**
+
+- `main.js` - Bundled plugin entry point
+- `styles.css` - Compiled styles (includes Svelte component styles)
+- `manifest.json` - Plugin metadata (unchanged)
+
+## Code Quality & Formatting
+
+### Prettier (Code Formatting)
+
+This project uses Prettier for consistent code formatting across TypeScript, JavaScript, Svelte, CSS, JSON, and Markdown files.
+
+**Available commands:**
+
+```bash
+# Format all files
+npm run format
+
+# Check formatting without making changes
+npm run format:check
+```
+
+**Configuration:** `.prettierrc.json`
+
+- Uses tabs for indentation (4 spaces)
+- Double quotes for strings
+- Trailing commas enabled
+- Print width: 100 characters
+- Svelte plugin for `.svelte` file formatting
+
+### ESLint (Linting)
+
+ESLint is configured to analyze TypeScript, JavaScript, and Svelte files for code quality issues.
+
+**Available commands:**
+
+```bash
+# Lint all files
+npm run lint
+
+# Lint and auto-fix issues
+npm run lint:fix
+```
+
+**Configuration:** `eslint.config.js`
+
+- TypeScript support with `@typescript-eslint`
+- Svelte support with `eslint-plugin-svelte`
+- Custom rules for Obsidian plugin development
+- Ignores `node_modules/`, `main.js`, and Svelte files (handled by Prettier)
+
+### Pre-commit Hooks
+
+The project uses `husky` and `lint-staged` for pre-commit code quality checks:
+
+- Automatically runs ESLint and Prettier on staged files
+- Ensures consistent code quality before commits
+- Configured in `package.json` under `lint-staged`
+
+### Available Scripts
+
+**Development:**
+
+```bash
+npm run dev          # Start development server with hot reload
+npm run build        # Build for production
+```
+
+**Code Quality:**
+
+```bash
+npm run format       # Format all files with Prettier
+npm run format:check # Check formatting without changes
+npm run lint         # Lint all files with ESLint
+npm run lint:fix     # Lint and auto-fix issues
+```
+
+**Version Management:**
+
+```bash
+npm run postversion  # Push changes and tags after version bump
+```
+
+**Git Hooks:**
+
+```bash
+npm run prepare      # Install husky git hooks
+npm run lint-staged  # Run linting on staged files
+```
+
+## Svelte Support
+
+This project includes full Svelte 5 support with runes for building reactive UI components.
+
+### Svelte Configuration
+
+- **Config file:** `svelte.config.js`
+- **Preprocessing:** Vite preprocessor with SCSS support
+- **Runes:** Enabled for modern Svelte 5 syntax
+- **TypeScript:** Full TypeScript support in `.svelte` files
+
+### Using Svelte Components
+
+**Integration example** (`src/svelte-integration.ts`):
+
+```ts
+import { mount, unmount } from "svelte";
+import MyComponent from "./components/MyComponent.svelte";
+
+// Mount component
+const component = mount(MyComponent, {
+	target: container,
+	props: { title: "Hello Svelte!" },
+});
+
+// Clean up when done
+unmount(component);
+```
+
+**Component structure** (`src/components/`):
+
+- Use Svelte 5 runes syntax (`$state`, `$props`, `$derived`)
+- TypeScript interfaces for props
+- Scoped CSS with Obsidian CSS variables
+- Event handling with `onclick` and other native events
+
+### Svelte Development
+
+- **Hot reload:** Vite provides instant updates during development
+- **Type checking:** `svelte-check` for TypeScript validation
+- **Formatting:** Prettier with `prettier-plugin-svelte`
+- **Linting:** ESLint with `eslint-plugin-svelte`
 
 ## File & folder conventions
 
@@ -47,18 +183,22 @@ npm run build
 - **Example file structure**:
     ```
     src/
-      main.ts           # Plugin entry point, lifecycle management
-      settings.ts       # Settings interface and defaults
-      commands/         # Command implementations
+      main.ts                    # Plugin entry point, lifecycle management
+      settings.ts                # Settings interface and defaults
+      svelte-integration.ts      # Svelte component integration utilities
+      components/                # Svelte components
+        MyComponent.svelte
+        AnotherComponent.svelte
+      commands/                  # Command implementations
         command1.ts
         command2.ts
-      ui/              # UI components, modals, views
+      ui/                       # UI components, modals, views
         modal.ts
         view.ts
-      utils/           # Utility functions, helpers
+      utils/                    # Utility functions, helpers
         helpers.ts
         constants.ts
-      types.ts         # TypeScript interfaces and types
+      types.ts                  # TypeScript interfaces and types
     ```
 - **Do not commit build artifacts**: Never commit `node_modules/`, `main.js`, or other generated files to version control.
 - Keep the plugin small. Avoid large dependencies. Prefer browser-compatible packages.
@@ -137,6 +277,15 @@ Follow Obsidian's **Developer Policies** and **Plugin Guidelines**. In particula
 - Bundle everything into `main.js` (no unbundled runtime deps).
 - Avoid Node/Electron APIs if you want mobile compatibility; set `isDesktopOnly` accordingly.
 - Prefer `async/await` over promise chains; handle errors gracefully.
+
+### Svelte-specific conventions
+
+- **Use Svelte 5 runes**: Prefer `$state`, `$props`, `$derived` over legacy syntax
+- **TypeScript in components**: Always define interfaces for component props
+- **CSS scoping**: Use scoped styles with Obsidian CSS variables (`var(--text-normal)`, etc.)
+- **Component lifecycle**: Always unmount Svelte components in Obsidian modals/views `onClose()`
+- **Event handling**: Use native DOM events (`onclick`, `oninput`) rather than Svelte's event system
+- **Props destructuring**: Use `$props()` with default values for clean prop handling
 
 ## Mobile
 
@@ -251,11 +400,27 @@ this.registerInterval(
 
 ## Troubleshooting
 
+### General Issues
+
 - Plugin doesn't load after build: ensure `main.js` and `manifest.json` are at the top level of the plugin folder under `<Vault>/.obsidian/plugins/<plugin-id>/`.
 - Build issues: if `main.js` is missing, run `npm run build` or `npm run dev` to compile your TypeScript source code.
 - Commands not appearing: verify `addCommand` runs after `onload` and IDs are unique.
 - Settings not persisting: ensure `loadData`/`saveData` are awaited and you re-render the UI after changes.
 - Mobile-only issues: confirm you're not using desktop-only APIs; check `isDesktopOnly` and adjust.
+
+### Svelte Issues
+
+- Svelte components not rendering: ensure components are properly mounted and unmounted in Obsidian modals/views
+- TypeScript errors in `.svelte` files: run `npx svelte-check` to validate component types
+- Styling issues: verify you're using Obsidian CSS variables (`var(--text-normal)`) for theme compatibility
+- Hot reload not working: restart the dev server with `npm run dev`
+
+### Code Quality Issues
+
+- Prettier not formatting Svelte files: ensure `prettier-plugin-svelte` is installed and configured
+- ESLint errors in Svelte files: check that `eslint-plugin-svelte` is properly configured
+- Pre-commit hooks failing: run `npm run lint:fix && npm run format` to fix issues before committing
+- Formatting conflicts: ensure Prettier and ESLint configurations are compatible
 
 ## References
 
