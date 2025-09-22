@@ -3,29 +3,24 @@ import { BlockInfo, EditorView } from "@codemirror/view";
 import type { EventRef, Workspace } from "obsidian";
 import type { CommentRange } from "./model";
 import { commentField, indexToArray } from "./state";
+import { mount, unmount } from "svelte";
+import CommentThreadLayer from "../components/CommentThreadLayer.svelte";
 
 const COMMENT_MARKER_SELECTOR = ".cm-commentIndicator-marker";
 const COMMENT_THREAD_SELECTOR = ".cm-commentIndicator-thread";
 const COMMENT_THREAD_OPEN_CLASS = "is-open";
 
-const THREAD_VIEWPORT_PADDING = 12;
-const THREAD_INLINE_SPACING = 12;
-const MIN_THREAD_WIDTH = 220;
-
-const EDITOR_CLASS = "cm-contentContainer"; // Editor scroller with the document
+const _EDITOR_CLASS = "cm-contentContainer"; // Editor scroller with the document
 const THREAD_LAYER_CLASS = "cm-thread-layer";
 
 const openThreadCleanup = new WeakMap<HTMLElement, () => void>();
 
-type WorkspaceResizeBinding = {
+type _WorkspaceResizeBinding = {
 	workspace: Workspace;
 	ref: EventRef;
 };
 
 // ---------- Utilities ----------
-
-const clamp = (v: number, min: number, max: number) =>
-	max < min ? min : Math.min(Math.max(v, min), max);
 
 function ensureEditorWrapper(view: EditorView): HTMLElement | null {
 	const parent = view.dom.parentElement as HTMLElement | null;
@@ -43,23 +38,6 @@ function ensureThreadLayer(view: EditorView): HTMLElement | null {
 		wrapper.appendChild(layer);
 	}
 	return layer;
-}
-
-function getMarginRight(view: EditorView): number {
-	const editorEl = view.dom as HTMLElement;
-	const contentContainerEl = editorEl.querySelector(`.${EDITOR_CLASS}`) as HTMLElement | null;
-	if (!contentContainerEl) return 0;
-	const editorRect = editorEl.getBoundingClientRect();
-	const contentRect = contentContainerEl.getBoundingClientRect();
-	return (editorRect.width - contentRect.width) / 2;
-}
-
-function subscribeToWorkspaceResize(listener: () => void): WorkspaceResizeBinding | null {
-	const obsidianWindow = window as Window & { app?: { workspace?: Workspace } };
-	const workspace = obsidianWindow.app?.workspace;
-	if (!workspace) return null;
-	const ref = workspace.on("resize", listener);
-	return { workspace, ref };
 }
 
 // ---------- Comments lookups ----------
@@ -99,71 +77,9 @@ function closeAllThreads(root: HTMLElement, except?: HTMLElement) {
 }
 
 /**
- * Positions the thread element beside its marker and keeps it within the viewport bounds.
+ * Mounts the Svelte thread component in the thread layer.
  */
-function updateThreadPlacement(
-	markerEl: HTMLElement,
-	threadEl: HTMLElement,
-	layerEl: HTMLElement,
-	view: EditorView,
-) {
-	if (!markerEl.isConnected || !layerEl.isConnected || !threadEl.isConnected) {
-		closeThreadElement(markerEl);
-		return;
-	}
-
-	// Reset inline positioning
-	threadEl.style.left = "auto";
-	threadEl.style.right = "auto";
-	threadEl.style.top = "auto";
-
-	const isRTL = getComputedStyle(markerEl).direction === "rtl";
-	const wrapperEl = layerEl.parentElement as HTMLElement | null;
-	if (!wrapperEl) return;
-
-	const markerRect = markerEl.getBoundingClientRect();
-	const threadRect = threadEl.getBoundingClientRect();
-	const wrapperRect = wrapperEl.getBoundingClientRect();
-	const viewportWidth = window.innerWidth;
-	const viewportHeight = window.innerHeight;
-
-	const spaceRight = viewportWidth - THREAD_VIEWPORT_PADDING - markerRect.right;
-	const spaceLeft = markerRect.left - THREAD_VIEWPORT_PADDING;
-	const marginRight = getMarginRight(view);
-
-	// Prefer right alignment in LTR if there is enough room in the right margin.
-	let alignRight = !isRTL && marginRight >= MIN_THREAD_WIDTH;
-
-	// Flip based on available space if needed.
-	if (alignRight && threadRect.width > spaceRight && spaceLeft > spaceRight) {
-		alignRight = false;
-	} else if (!alignRight && threadRect.width > spaceLeft && spaceRight >= spaceLeft) {
-		alignRight = true;
-	}
-
-	// Horizontal position
-	const leftIfRight = markerRect.right - wrapperRect.left + THREAD_INLINE_SPACING;
-	const leftIfLeft =
-		markerRect.left - wrapperRect.left - THREAD_INLINE_SPACING - threadRect.width;
-
-	const minLeft = THREAD_VIEWPORT_PADDING - wrapperRect.left;
-	const maxLeft = viewportWidth - THREAD_VIEWPORT_PADDING - threadRect.width - wrapperRect.left;
-
-	const left = clamp(alignRight ? leftIfRight : leftIfLeft, minLeft, maxLeft);
-	threadEl.style.left = `${left}px`;
-	threadEl.dataset.threadPosition = alignRight ? "right" : "left";
-
-	// Vertical position
-	const baseTop = markerRect.top - wrapperRect.top;
-	const minTop = THREAD_VIEWPORT_PADDING - wrapperRect.top;
-	const maxTop = viewportHeight - THREAD_VIEWPORT_PADDING - threadRect.height - wrapperRect.top;
-	threadEl.style.top = `${clamp(baseTop, minTop, maxTop)}px`;
-}
-
-/**
- * Mounts the thread element in the thread layer and wires up dynamic positioning.
- */
-function openThreadForMarker(view: EditorView, markerEl: HTMLElement, threadEl: HTMLElement) {
+function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: CommentRange[]) {
 	const layer = ensureThreadLayer(view);
 	if (!layer) return;
 
@@ -171,132 +87,33 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, threadEl: 
 	closeThreadElement(markerEl);
 
 	markerEl.classList.add(COMMENT_THREAD_OPEN_CLASS);
-	threadEl.style.display = "block";
-	layer.appendChild(threadEl);
 
-	const reposition = () => {
-		updateThreadPlacement(markerEl, threadEl, layer, view);
+	// Create a container for the Svelte component
+	const container = document.createElement("div");
+	layer.appendChild(container);
 
-		// Constrain width only when thread is on the right.
-		if (threadEl.dataset.threadPosition === "right") {
-			const width = Math.max(0, Math.floor(getMarginRight(view)));
-			threadEl.style.width = width ? `${width}px` : "";
-		} else {
-			threadEl.style.width = "";
-		}
-	};
-
-	// Initial placement + one RAF tick to account for layout/paint.
-	reposition();
-	requestAnimationFrame(reposition);
-
-	// Observe size changes.
-	const resizeObserver =
-		typeof ResizeObserver !== "undefined" ? new ResizeObserver(reposition) : null;
-	if (resizeObserver) {
-		const wrapper = layer.parentElement;
-		if (wrapper) resizeObserver.observe(wrapper);
-		resizeObserver.observe(layer);
-		resizeObserver.observe(view.dom);
-	}
-
-	// Scroll / resize listeners.
-	const onScroll = () => reposition();
-	view.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
-	window.addEventListener("scroll", onScroll, { passive: true });
-
-	const workspaceBinding = subscribeToWorkspaceResize(reposition);
-	if (!workspaceBinding) {
-		window.addEventListener("resize", reposition);
-	}
-
-	// Auto-close if marker is detached.
-	let rafId: number | null = null;
-	const monitorConnection = () => {
-		if (!markerEl.isConnected) {
-			closeThreadElement(markerEl);
-			return;
-		}
-		rafId = window.requestAnimationFrame(monitorConnection);
-	};
-	rafId = window.requestAnimationFrame(monitorConnection);
+	// Mount the Svelte component
+	const svelteComponent = mount(CommentThreadLayer, {
+		target: container,
+		props: {
+			comments,
+			markerElement: markerEl,
+			editorView: view,
+			onClose: () => {
+				closeThreadElement(markerEl);
+			},
+		},
+	});
 
 	// Register cleanup.
 	openThreadCleanup.set(markerEl, () => {
-		resizeObserver?.disconnect();
-		view.scrollDOM.removeEventListener("scroll", onScroll);
-		window.removeEventListener("scroll", onScroll);
-		if (workspaceBinding) {
-			workspaceBinding.workspace.offref(workspaceBinding.ref);
-		} else {
-			window.removeEventListener("resize", reposition);
-		}
-		if (rafId !== null) {
-			cancelAnimationFrame(rafId);
-		}
-		threadEl.remove();
+		unmount(svelteComponent);
+		container.remove();
 	});
 }
 
 // ---------- Rendering ----------
-
-/** Builds a thread container populated with the provided comment ranges. */
-function renderThread(comments: CommentRange[]): HTMLElement {
-	const container = document.createElement("div");
-	container.className = "cm-commentIndicator-thread";
-	for (const comment of comments) {
-		container.appendChild(renderThreadItem(comment));
-	}
-	return container;
-}
-
-/** Creates the DOM representation for a single comment bubble entry. */
-function renderThreadItem(comment: CommentRange): HTMLElement {
-	const item = document.createElement("div");
-	item.className = "cm-commentIndicator-item comment-bubble";
-	item.dataset.commentId = comment.id;
-	if (comment.resolved) item.dataset.commentResolved = "true";
-
-	const header = document.createElement("div");
-	header.className = "comment-header";
-
-	const author = document.createElement("span");
-	author.className = "comment-author";
-	author.textContent = (comment.author ?? "Comment").trim();
-	header.appendChild(author);
-
-	const timestamp = formatTimestamp(comment.createdAt);
-	if (timestamp) {
-		const timeEl = document.createElement("span");
-		timeEl.className = "comment-timestamp";
-		timeEl.textContent = timestamp;
-		header.appendChild(timeEl);
-	}
-
-	if (comment.resolved) {
-		const resolved = document.createElement("span");
-		resolved.className = "comment-timestamp";
-		resolved.textContent = "Resolved";
-		header.appendChild(resolved);
-	}
-
-	item.appendChild(header);
-
-	const body = document.createElement("p");
-	body.className = "comment-text";
-	body.textContent = (comment.text ?? "(No comment text)").trim();
-	item.appendChild(body);
-
-	return item;
-}
-
-/** Formats a comment timestamp into a localized string, returning null when unavailable. */
-function formatTimestamp(value: CommentRange["createdAt"]): string | null {
-	if (value === undefined || value === null) return null;
-	const date = value instanceof Date ? value : new Date(value);
-	if (Number.isNaN(date.getTime())) return null;
-	return date.toLocaleString();
-}
+// Rendering is now handled by Svelte components
 
 // ---------- Public API ----------
 
@@ -338,8 +155,7 @@ export function handleCommentMarkerPointerDown(
 		return true;
 	}
 
-	// Open a new thread.
-	const threadEl = renderThread(comments);
-	openThreadForMarker(view, markerEl, threadEl);
+	// Open a new thread using Svelte component.
+	openThreadForMarker(view, markerEl, comments);
 	return true;
 }
