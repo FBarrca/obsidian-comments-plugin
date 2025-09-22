@@ -9,6 +9,7 @@ const COMMENT_THREAD_SELECTOR = ".cm-commentIndicator-thread";
 const COMMENT_THREAD_OPEN_CLASS = "is-open";
 const THREAD_VIEWPORT_PADDING = 12;
 const THREAD_INLINE_SPACING = 12;
+const MIN_THREAD_WIDTH = 220;
 const EDITOR_WRAPPER_CLASS = "cm-editor-wrapper"; // Editor pane
 const EDITOR_CLASS = "cm-contentContainer"; // Editor scroller
 const THREAD_LAYER_CLASS = "cm-thread-layer";
@@ -132,7 +133,12 @@ function subscribeToWorkspaceResize(listener: () => void): WorkspaceResizeBindin
 /**
  * Positions the thread element beside its marker and keeps it within the viewport bounds.
  */
-function updateThreadPlacement(markerEl: HTMLElement, threadEl: HTMLElement, layerEl: HTMLElement) {
+function updateThreadPlacement(
+	markerEl: HTMLElement,
+	threadEl: HTMLElement,
+	layerEl: HTMLElement,
+	view: EditorView,
+) {
 	if (!markerEl.isConnected || !layerEl.isConnected || !threadEl.isConnected) {
 		closeThreadElement(markerEl);
 		return;
@@ -156,9 +162,13 @@ function updateThreadPlacement(markerEl: HTMLElement, threadEl: HTMLElement, lay
 
 	const spaceRight = viewportWidth - THREAD_VIEWPORT_PADDING - markerRect.right;
 	const spaceLeft = markerRect.left - THREAD_VIEWPORT_PADDING;
+	const marginRight = getmarginRight(view);
 
+	// If margin right is smaller than minimum thread width, prefer left alignment
 	let alignRight = !isRTL;
-	if (alignRight && threadRect.width > spaceRight && spaceLeft > spaceRight) {
+	if (marginRight < MIN_THREAD_WIDTH) {
+		alignRight = false;
+	} else if (alignRight && threadRect.width > spaceRight && spaceLeft > spaceRight) {
 		alignRight = false;
 	} else if (!alignRight && threadRect.width > spaceLeft && spaceRight >= spaceLeft) {
 		alignRight = true;
@@ -205,8 +215,13 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, threadEl: 
 	layer.appendChild(threadEl);
 
 	const reposition = () => {
+		// First determine the thread position
+		updateThreadPlacement(markerEl, threadEl, layer, view);
+
 		const marginRight = getmarginRight(view);
-		if (marginRight > 0) {
+
+		// Only constrain width when thread is positioned on the right
+		if (threadEl.dataset.threadPosition === "right" && marginRight > 0) {
 			const targetWidth = Math.max(0, Math.floor(marginRight));
 			// threadEl.style.minWidth = "0px";
 			// threadEl.style.maxWidth = "none";
@@ -216,7 +231,6 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, threadEl: 
 			// 	threadEl.style.maxWidth = "";
 			// 	threadEl.style.minWidth = "";
 		}
-		updateThreadPlacement(markerEl, threadEl, layer);
 	};
 	const logWidths = () => logEditorWrapperWidths(view);
 	const handleResize = () => {
