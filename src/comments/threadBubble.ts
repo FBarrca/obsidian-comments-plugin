@@ -10,7 +10,11 @@ const COMMENT_MARKER_SELECTOR = ".cm-commentIndicator-marker";
 const COMMENT_THREAD_SELECTOR = ".cm-commentIndicator-thread";
 const COMMENT_THREAD_OPEN_CLASS = "is-open";
 
-const _EDITOR_CLASS = "cm-contentContainer"; // Editor scroller with the document
+const THREAD_VIEWPORT_PADDING = 12;
+const THREAD_INLINE_SPACING = 12;
+const MIN_THREAD_WIDTH = 220;
+
+const EDITOR_CLASS = "cm-contentContainer"; // Editor scroller with the document
 const THREAD_LAYER_CLASS = "cm-thread-layer";
 
 const openThreadCleanup = new WeakMap<HTMLElement, () => void>();
@@ -21,6 +25,9 @@ type _WorkspaceResizeBinding = {
 };
 
 // ---------- Utilities ----------
+
+const _clamp = (v: number, min: number, max: number) =>
+	max < min ? min : Math.min(Math.max(v, min), max);
 
 function ensureEditorWrapper(view: EditorView): HTMLElement | null {
 	const parent = view.dom.parentElement as HTMLElement | null;
@@ -38,6 +45,23 @@ function ensureThreadLayer(view: EditorView): HTMLElement | null {
 		wrapper.appendChild(layer);
 	}
 	return layer;
+}
+
+function _getMarginRight(view: EditorView): number {
+	const editorEl = view.dom as HTMLElement;
+	const contentContainerEl = editorEl.querySelector(`.${EDITOR_CLASS}`) as HTMLElement | null;
+	if (!contentContainerEl) return 0;
+	const editorRect = editorEl.getBoundingClientRect();
+	const contentRect = contentContainerEl.getBoundingClientRect();
+	return (editorRect.width - contentRect.width) / 2;
+}
+
+function _subscribeToWorkspaceResize(listener: () => void): _WorkspaceResizeBinding | null {
+	const obsidianWindow = window as Window & { app?: { workspace?: Workspace } };
+	const workspace = obsidianWindow.app?.workspace;
+	if (!workspace) return null;
+	const ref = workspace.on("resize", listener);
+	return { workspace, ref };
 }
 
 // ---------- Comments lookups ----------
@@ -102,6 +126,10 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 			onClose: () => {
 				closeThreadElement(markerEl);
 			},
+			// Pass positioning constants
+			threadViewportPadding: THREAD_VIEWPORT_PADDING,
+			threadInlineSpacing: THREAD_INLINE_SPACING,
+			minThreadWidth: MIN_THREAD_WIDTH,
 		},
 	});
 

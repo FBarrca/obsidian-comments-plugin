@@ -8,19 +8,26 @@
 		markerElement: HTMLElement;
 		editorView: any; // EditorView from CodeMirror
 		onClose: () => void;
+		threadViewportPadding?: number;
+		threadInlineSpacing?: number;
+		minThreadWidth?: number;
 	}
 
-	let { comments, markerElement, editorView, onClose }: Props = $props();
+	let {
+		comments,
+		markerElement,
+		editorView,
+		onClose,
+		threadViewportPadding = 12,
+		threadInlineSpacing = 12,
+		minThreadWidth = 220,
+	}: Props = $props();
 
 	let threadElement: HTMLElement | null = null;
 	let layerElement: HTMLElement;
 	let resizeObserver: ResizeObserver | null = null;
 	let rafId: number | null = null;
 	let workspaceBinding: { workspace: any; ref: any } | null = null;
-
-	const THREAD_VIEWPORT_PADDING = 12;
-	const THREAD_INLINE_SPACING = 12;
-	const MIN_THREAD_WIDTH = 220;
 
 	function clamp(v: number, min: number, max: number): number {
 		return max < min ? min : Math.min(Math.max(v, min), max);
@@ -46,36 +53,41 @@
 	}
 
 	function updateThreadPlacement() {
+		// Get the actual thread element from the CommentThread component
+		const actualThreadElement = layerElement?.querySelector(
+			".cm-commentIndicator-thread",
+		) as HTMLElement;
+
 		if (
 			!markerElement?.isConnected ||
 			!layerElement?.isConnected ||
-			!threadElement?.isConnected
+			!actualThreadElement?.isConnected
 		) {
 			onClose();
 			return;
 		}
 
 		// Reset inline positioning
-		threadElement.style.left = "auto";
-		threadElement.style.right = "auto";
-		threadElement.style.top = "auto";
+		actualThreadElement.style.left = "auto";
+		actualThreadElement.style.right = "auto";
+		actualThreadElement.style.top = "auto";
 
 		const isRTL = getComputedStyle(markerElement).direction === "rtl";
 		const wrapperEl = layerElement.parentElement as HTMLElement | null;
 		if (!wrapperEl) return;
 
 		const markerRect = markerElement.getBoundingClientRect();
-		const threadRect = threadElement.getBoundingClientRect();
+		const threadRect = actualThreadElement.getBoundingClientRect();
 		const wrapperRect = wrapperEl.getBoundingClientRect();
 		const viewportWidth = window.innerWidth;
 		const viewportHeight = window.innerHeight;
 
-		const spaceRight = viewportWidth - THREAD_VIEWPORT_PADDING - markerRect.right;
-		const spaceLeft = markerRect.left - THREAD_VIEWPORT_PADDING;
+		const spaceRight = viewportWidth - threadViewportPadding - markerRect.right;
+		const spaceLeft = markerRect.left - threadViewportPadding;
 		const marginRight = getMarginRight(editorView);
 
 		// Prefer right alignment in LTR if there is enough room in the right margin.
-		let alignRight = !isRTL && marginRight >= MIN_THREAD_WIDTH;
+		let alignRight = !isRTL && marginRight >= minThreadWidth;
 
 		// Flip based on available space if needed.
 		if (alignRight && threadRect.width > spaceRight && spaceLeft > spaceRight) {
@@ -85,37 +97,42 @@
 		}
 
 		// Horizontal position
-		const leftIfRight = markerRect.right - wrapperRect.left + THREAD_INLINE_SPACING;
+		const leftIfRight = markerRect.right - wrapperRect.left + threadInlineSpacing;
 		const leftIfLeft =
-			markerRect.left - wrapperRect.left - THREAD_INLINE_SPACING - threadRect.width;
+			markerRect.left - wrapperRect.left - threadInlineSpacing - threadRect.width;
 
-		const minLeft = THREAD_VIEWPORT_PADDING - wrapperRect.left;
-		const maxLeft =
-			viewportWidth - THREAD_VIEWPORT_PADDING - threadRect.width - wrapperRect.left;
+		const minLeft = threadViewportPadding - wrapperRect.left;
+		const maxLeft = viewportWidth - threadViewportPadding - threadRect.width - wrapperRect.left;
 
 		const left = clamp(alignRight ? leftIfRight : leftIfLeft, minLeft, maxLeft);
-		threadElement.style.left = `${left}px`;
-		threadElement.dataset.threadPosition = alignRight ? "right" : "left";
+		actualThreadElement.style.left = `${left}px`;
+		actualThreadElement.dataset.threadPosition = alignRight ? "right" : "left";
 
 		// Vertical position
 		const baseTop = markerRect.top - wrapperRect.top;
-		const minTop = THREAD_VIEWPORT_PADDING - wrapperRect.top;
-		const maxTop =
-			viewportHeight - THREAD_VIEWPORT_PADDING - threadRect.height - wrapperRect.top;
-		threadElement.style.top = `${clamp(baseTop, minTop, maxTop)}px`;
+		const minTop = threadViewportPadding - wrapperRect.top;
+		const maxTop = viewportHeight - threadViewportPadding - threadRect.height - wrapperRect.top;
+		actualThreadElement.style.top = `${clamp(baseTop, minTop, maxTop)}px`;
 
 		// Constrain width only when thread is on the right.
-		if (threadElement.dataset.threadPosition === "right") {
+		if (actualThreadElement.dataset.threadPosition === "right") {
 			const width = Math.max(0, Math.floor(getMarginRight(editorView)));
-			threadElement.style.width = width ? `${width}px` : "";
+			actualThreadElement.style.width = width ? `${width}px` : "";
 		} else {
-			threadElement.style.width = "";
+			actualThreadElement.style.width = "";
 		}
 	}
 
 	function handleScroll() {
 		// Add null check before calling updateThreadPlacement
-		if (markerElement?.isConnected && layerElement?.isConnected && threadElement?.isConnected) {
+		const actualThreadElement = layerElement?.querySelector(
+			".cm-commentIndicator-thread",
+		) as HTMLElement;
+		if (
+			markerElement?.isConnected &&
+			layerElement?.isConnected &&
+			actualThreadElement?.isConnected
+		) {
 			updateThreadPlacement();
 		}
 	}
@@ -130,31 +147,12 @@
 
 	onMount(() => {
 		// Initial placement + one RAF tick to account for layout/paint.
-		if (markerElement?.isConnected && layerElement?.isConnected && threadElement?.isConnected) {
-			updateThreadPlacement();
-			requestAnimationFrame(() => {
-				if (
-					markerElement?.isConnected &&
-					layerElement?.isConnected &&
-					threadElement?.isConnected
-				) {
-					updateThreadPlacement();
-				}
-			});
-		}
+		updateThreadPlacement();
+		requestAnimationFrame(updateThreadPlacement);
 
 		// Observe size changes.
 		if (typeof ResizeObserver !== "undefined") {
-			resizeObserver = new ResizeObserver(() => {
-				// Add null check before calling updateThreadPlacement
-				if (
-					markerElement?.isConnected &&
-					layerElement?.isConnected &&
-					threadElement?.isConnected
-				) {
-					updateThreadPlacement();
-				}
-			});
+			resizeObserver = new ResizeObserver(updateThreadPlacement);
 			const wrapper = layerElement.parentElement;
 			if (wrapper) resizeObserver.observe(wrapper);
 			resizeObserver.observe(layerElement);
@@ -179,7 +177,7 @@
 		editorView.scrollDOM.removeEventListener("scroll", handleScroll);
 		window.removeEventListener("scroll", handleScroll);
 		if (workspaceBinding) {
-			workspaceBinding.workspace.offref(workspaceBinding.ref);
+			workspaceBinding.workspace.off(workspaceBinding.ref);
 		} else {
 			window.removeEventListener("resize", updateThreadPlacement);
 		}
