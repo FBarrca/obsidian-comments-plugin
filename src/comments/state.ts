@@ -11,7 +11,11 @@ import {
 	clampRange,
 	removeComment,
 	setActiveComment,
+	syncWithDatabase,
+	loadFromDatabase,
+	setDatabaseAPI,
 } from "./model";
+import { CommentAPIWithDatabase } from "./apiWithDatabase";
 
 export type CommentIndex = Map<string, CommentRange>;
 
@@ -20,6 +24,7 @@ export interface CommentState {
 	decos: DecorationSet;
 	activeId: string | null;
 	highlightColor: string;
+	databaseAPI: CommentAPIWithDatabase | null;
 }
 
 export function indexToArray(idx: CommentIndex): CommentRange[] {
@@ -32,13 +37,20 @@ export const commentField = StateField.define<CommentState>({
 	create(state) {
 		const highlightColor =
 			state.facet(commentHighlightColorFacet) ?? defaultCommentHighlightColor;
-		return { byId: new Map(), decos: Decoration.none, activeId: null, highlightColor };
+		return {
+			byId: new Map(),
+			decos: Decoration.none,
+			activeId: null,
+			highlightColor,
+			databaseAPI: null,
+		};
 	},
 	update(curr, tr) {
 		const docLen = tr.newDoc.length;
 		let activeId = curr.activeId;
 		let needsRebuild = tr.docChanged;
 		let byId: CommentIndex;
+		let databaseAPI = curr.databaseAPI;
 		const highlightColor =
 			tr.state.facet(commentHighlightColorFacet) ?? defaultCommentHighlightColor;
 
@@ -85,6 +97,34 @@ export const commentField = StateField.define<CommentState>({
 					needsRebuild = true;
 				}
 				effectSummary.push({ type: "setActive", id: effect.value.id });
+			} else if (effect.is(loadFromDatabase)) {
+				// Load comments from database
+				byId = new Map<string, CommentRange>();
+				for (const comment of effect.value.comments) {
+					const [from, to] = clampRange(docLen, comment.from, comment.to);
+					byId.set(comment.id, { ...comment, from, to });
+				}
+				needsRebuild = true;
+				effectSummary.push({
+					type: "loadFromDatabase",
+					count: effect.value.comments.length,
+				});
+			} else if (effect.is(syncWithDatabase)) {
+				// Sync current state with database
+				byId = new Map<string, CommentRange>();
+				for (const comment of effect.value.comments) {
+					const [from, to] = clampRange(docLen, comment.from, comment.to);
+					byId.set(comment.id, { ...comment, from, to });
+				}
+				needsRebuild = true;
+				effectSummary.push({
+					type: "syncWithDatabase",
+					count: effect.value.comments.length,
+				});
+			} else if (effect.is(setDatabaseAPI)) {
+				// Set the database API
+				databaseAPI = effect.value.api;
+				effectSummary.push({ type: "setDatabaseAPI" });
 			} else {
 				effectSummary.push({ type: "other" });
 			}
@@ -105,7 +145,7 @@ export const commentField = StateField.define<CommentState>({
 			? buildDecorations(docLen, indexToArray(byId), activeId, highlightColor)
 			: curr.decos;
 
-		return { byId, decos, activeId, highlightColor };
+		return { byId, decos, activeId, highlightColor, databaseAPI };
 	},
 	provide: (field) => [EditorView.decorations.from(field, (state) => state.decos)],
 });

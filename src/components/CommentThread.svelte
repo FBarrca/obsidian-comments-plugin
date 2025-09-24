@@ -7,9 +7,20 @@
 		position?: "left" | "right";
 		width?: number;
 		style?: string;
+		databaseAPI?: any; // CommentAPIWithDatabase
+		editorView?: any; // EditorView from CodeMirror
+		onClose?: () => void;
 	}
 
-	let { comments, position = "right", width, style: customStyle }: Props = $props();
+	let {
+		comments,
+		position = "right",
+		width,
+		style: customStyle,
+		databaseAPI,
+		editorView,
+		onClose,
+	}: Props = $props();
 
 	let computedStyle = $derived(width ? `width: ${width}px;` : "");
 	let finalStyle = $derived(customStyle ? `${customStyle}; ${computedStyle}` : computedStyle);
@@ -25,7 +36,7 @@
 	style={finalStyle}
 >
 	{#each comments as comment (comment.id)}
-		<CommentThreadItem {comment} />
+		<CommentThreadItem {comment} {databaseAPI} {editorView} {onClose} />
 	{/each}
 </div>
 

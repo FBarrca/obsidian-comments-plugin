@@ -43,4 +43,13 @@ export {
 } from "./api";
 export { getActiveComment, getAllComments, getCommentById, getCommentsAtPos } from "./selectors";
 export type { CommentRange } from "./model";
-export { COMMENT_CLICK_EVENT, addOrUpdateComment, removeComment, setActiveComment } from "./model";
+export {
+	COMMENT_CLICK_EVENT,
+	addOrUpdateComment,
+	removeComment,
+	setActiveComment,
+	syncWithDatabase,
+	loadFromDatabase,
+} from "./model";
+export { CommentDatabaseService } from "./databaseService";
+export { CommentAPIWithDatabase } from "./apiWithDatabase";

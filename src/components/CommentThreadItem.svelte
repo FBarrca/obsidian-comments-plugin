@@ -6,9 +6,13 @@
 		onResolve?: (commentId: string) => void;
 		onDelete?: (commentId: string) => void;
 		onEdit?: (commentId: string) => void;
+		databaseAPI?: any; // CommentAPIWithDatabase
+		editorView?: any; // EditorView from CodeMirror
+		onClose?: () => void;
 	}
 
-	let { comment, onResolve, onDelete, onEdit }: Props = $props();
+	let { comment, onResolve, onDelete, onEdit, databaseAPI, editorView, onClose }: Props =
+		$props();
 
 	function formatTimestamp(value: CommentRange["createdAt"]): string | null {
 		if (value === undefined || value === null) return null;
@@ -23,8 +27,24 @@
 		onResolve?.(comment.id);
 	}
 
-	function handleDelete() {
-		onDelete?.(comment.id);
+	async function handleDelete() {
+		if (databaseAPI && editorView) {
+			try {
+				// Use the database API to delete the comment
+				await databaseAPI.removeCommentCommand(editorView, comment.id);
+				console.log("Comment deleted successfully:", comment.id);
+
+				// Close the thread after successful deletion
+				onClose?.();
+			} catch (error) {
+				console.error("Failed to delete comment:", error);
+				// Fallback to the callback on error
+				onDelete?.(comment.id);
+			}
+		} else {
+			// Fallback to the callback if no database API or editor view available
+			onDelete?.(comment.id);
+		}
 	}
 
 	function handleEdit() {

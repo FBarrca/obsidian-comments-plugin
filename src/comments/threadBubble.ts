@@ -3,6 +3,8 @@ import { BlockInfo, EditorView } from "@codemirror/view";
 import type { EventRef, Workspace } from "obsidian";
 import type { CommentRange } from "./model";
 import { commentField, indexToArray } from "./state";
+import { getDatabaseAPI } from "./selectors";
+import { setDatabaseAPI } from "./model";
 import { mount, unmount } from "svelte";
 import CommentThreadLayer from "../components/CommentThreadLayer.svelte";
 
@@ -18,6 +20,13 @@ const EDITOR_CLASS = "cm-contentContainer"; // Editor scroller with the document
 const THREAD_LAYER_CLASS = "cm-thread-layer";
 
 const openThreadCleanup = new WeakMap<HTMLElement, () => void>();
+
+// Global reference to the database API
+let globalDatabaseAPI: unknown = null;
+
+export function setGlobalDatabaseAPI(api: unknown) {
+	globalDatabaseAPI = api;
+}
 
 type _WorkspaceResizeBinding = {
 	workspace: Workspace;
@@ -116,6 +125,16 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 	const container = document.createElement("div");
 	layer.appendChild(container);
 
+	// Get the database API from the state or use the global one
+	let databaseAPI = getDatabaseAPI(view);
+
+	// If not in state, use global API and set it in state
+	if (!databaseAPI && globalDatabaseAPI) {
+		databaseAPI = globalDatabaseAPI;
+		// Set it in the state for future use
+		view.dispatch({ effects: setDatabaseAPI.of({ api: globalDatabaseAPI }) });
+	}
+
 	// Mount the Svelte component
 	const svelteComponent = mount(CommentThreadLayer, {
 		target: container,
@@ -123,6 +142,7 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 			comments,
 			markerElement: markerEl,
 			editorView: view,
+			databaseAPI,
 			onClose: () => {
 				closeThreadElement(markerEl);
 			},

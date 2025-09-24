@@ -24,3 +24,6 @@ export function clampRange(docLen: number, from: number, to: number) {
 export const addOrUpdateComment = StateEffect.define<CommentRange>();
 export const removeComment = StateEffect.define<{ id: string }>();
 export const setActiveComment = StateEffect.define<{ id: string | null }>();
+export const syncWithDatabase = StateEffect.define<{ comments: CommentRange[] }>();
+export const loadFromDatabase = StateEffect.define<{ comments: CommentRange[] }>();
+export const setDatabaseAPI = StateEffect.define<{ api: unknown }>();

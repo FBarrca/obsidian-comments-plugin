@@ -40,3 +40,8 @@ export function getCommentsAtPos(view: EditorView, pos: number): CommentRange[] 
 
 	return hits;
 }
+
+export function getDatabaseAPI(view: EditorView): unknown | null {
+	const state = view.state.field(commentField, false);
+	return state?.databaseAPI ?? null;
+}

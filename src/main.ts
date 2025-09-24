@@ -12,7 +12,7 @@ export default class MyPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		registerCommentFeatures(this, { highlightColor: this.settings.highlightColor });
+		await registerCommentFeatures(this, { highlightColor: this.settings.highlightColor });
 
 		// Add command to show Svelte example
 		this.addCommand({

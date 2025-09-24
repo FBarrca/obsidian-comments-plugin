@@ -11,6 +11,7 @@
 		threadViewportPadding?: number;
 		threadInlineSpacing?: number;
 		minThreadWidth?: number;
+		databaseAPI?: any; // CommentAPIWithDatabase
 	}
 
 	let {
@@ -21,6 +22,7 @@
 		threadViewportPadding = 12,
 		threadInlineSpacing = 12,
 		minThreadWidth = 220,
+		databaseAPI,
 	}: Props = $props();
 
 	let threadElement: HTMLElement | null = null;
@@ -189,7 +191,7 @@
 
 <div bind:this={layerElement} class="cm-thread-layer" style="position: relative;">
 	<div bind:this={threadElement}>
-		<CommentThread {comments} style="display: block;" />
+		<CommentThread {comments} {databaseAPI} {editorView} {onClose} style="display: block;" />
 	</div>
 </div>
 
