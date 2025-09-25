@@ -519,4 +519,17 @@
 			height: 32px;
 		}
 	}
+
+	/* Comment bubble styling - moved from global CSS */
+	.comment-bubble {
+		padding: 12px;
+		background: var(--background-primary);
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 8px;
+		box-shadow: 0 4px 12px var(--shadow-s);
+		color: var(--text-normal);
+		white-space: normal;
+		flex: 0 0 auto;
+		width: 100%;
+	}
 </style>
