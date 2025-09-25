@@ -34,7 +34,7 @@ export async function registerCommentFeatures(plugin: Plugin, options?: Comments
 	await dbService.initialize();
 	const commentAPI = new CommentAPIWithDatabase(dbService);
 
-	// Set the global database API for use in threadBubble
+	// Set global references for thread UI helpers
 	setGlobalDatabaseAPI(commentAPI);
 
 	plugin.registerEditorExtension(commentsExtension(extensionOptions));

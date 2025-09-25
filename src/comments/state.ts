@@ -123,7 +123,7 @@ export const commentField = StateField.define<CommentState>({
 				});
 			} else if (effect.is(setDatabaseAPI)) {
 				// Set the database API
-				databaseAPI = effect.value.api;
+				databaseAPI = effect.value.api as CommentAPIWithDatabase;
 				effectSummary.push({ type: "setDatabaseAPI" });
 			} else {
 				effectSummary.push({ type: "other" });

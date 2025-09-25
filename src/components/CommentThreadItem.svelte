@@ -5,7 +5,7 @@
 		comment: CommentRange;
 		onResolve?: (commentId: string) => void;
 		onDelete?: (commentId: string) => void;
-		onEdit?: (commentId: string) => void;
+		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 		databaseAPI?: any; // CommentAPIWithDatabase
 		editorView?: any; // EditorView from CodeMirror
 		onClose?: () => void;
@@ -22,6 +22,25 @@
 	}
 
 	let timestamp = $derived(formatTimestamp(comment.createdAt));
+	let isEditing = $state(false);
+	let draftText = $state(comment.text ?? "");
+	let isSaving = $state(false);
+	let errorMessage = $state<string | null>(null);
+	let textareaEl = $state<HTMLTextAreaElement | null>(null);
+
+	let canEdit = $derived(
+		Boolean(onEdit) || Boolean(databaseAPI?.updateCommentCommand && editorView),
+	);
+	let trimmedDraft = $derived(draftText.trim());
+	let currentText = $derived((comment.text ?? "").trim());
+	let hasChanges = $derived(trimmedDraft !== currentText);
+	let canSave = $derived(canEdit && !isSaving && hasChanges && trimmedDraft.length > 0);
+
+	$effect(() => {
+		if (!isEditing) {
+			draftText = comment.text ?? "";
+		}
+	});
 
 	function handleResolve() {
 		onResolve?.(comment.id);
@@ -30,25 +49,100 @@
 	async function handleDelete() {
 		if (databaseAPI && editorView) {
 			try {
-				// Use the database API to delete the comment
 				await databaseAPI.removeCommentCommand(editorView, comment.id);
 				console.log("Comment deleted successfully:", comment.id);
-
-				// Close the thread after successful deletion
 				onClose?.();
 			} catch (error) {
 				console.error("Failed to delete comment:", error);
-				// Fallback to the callback on error
 				onDelete?.(comment.id);
 			}
 		} else {
-			// Fallback to the callback if no database API or editor view available
 			onDelete?.(comment.id);
 		}
 	}
 
+	function focusTextarea() {
+		queueMicrotask(() => {
+			if (textareaEl) {
+				textareaEl.focus();
+				const length = textareaEl.value.length;
+				textareaEl.setSelectionRange(length, length);
+			}
+		});
+	}
+
 	function handleEdit() {
-		onEdit?.(comment.id);
+		if (!canEdit) {
+			return;
+		}
+
+		errorMessage = null;
+		isEditing = true;
+		draftText = comment.text ?? "";
+		focusTextarea();
+	}
+
+	function handleCancel() {
+		isEditing = false;
+		errorMessage = null;
+		draftText = comment.text ?? "";
+	}
+
+	async function handleSave() {
+		if (!trimmedDraft.length) {
+			errorMessage = "Comment cannot be empty.";
+			return;
+		}
+
+		if (!hasChanges) {
+			isEditing = false;
+			errorMessage = null;
+			return;
+		}
+
+		if (!canEdit) {
+			errorMessage = "Editing is not available.";
+			return;
+		}
+
+		isSaving = true;
+		errorMessage = null;
+
+		try {
+			let updateSucceeded = false;
+
+			if (onEdit) {
+				const result = await onEdit(comment.id, trimmedDraft);
+				updateSucceeded = result !== false;
+			} else if (databaseAPI?.updateCommentCommand && editorView) {
+				updateSucceeded = await databaseAPI.updateCommentCommand(editorView, comment.id, {
+					text: trimmedDraft,
+				});
+			}
+
+			if (!updateSucceeded) {
+				errorMessage = "Failed to update comment.";
+				return;
+			}
+
+			isEditing = false;
+			draftText = trimmedDraft;
+		} catch (error) {
+			console.error("Failed to update comment:", error);
+			errorMessage = "Failed to update comment.";
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	function handleKeydown(event: KeyboardEvent) {
+		if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+			event.preventDefault();
+			void handleSave();
+		} else if (event.key === "Escape") {
+			event.preventDefault();
+			handleCancel();
+		}
 	}
 </script>
 
@@ -94,6 +188,7 @@
 				onclick={handleEdit}
 				title="Edit comment"
 				aria-label="Edit comment"
+				disabled={!canEdit}
 			>
 				<svg
 					width="14"
@@ -134,9 +229,44 @@
 	</div>
 
 	<div class="comment-content">
-		<p class="comment-text">
-			{comment.text?.trim() ?? "(No comment text)"}
-		</p>
+		{#if isEditing}
+			<div class="comment-edit">
+				<textarea
+					bind:this={textareaEl}
+					bind:value={draftText}
+					class="comment-textarea"
+					rows={Math.min(8, Math.max(3, draftText.split("\n").length + 1))}
+					placeholder="Update comment"
+					onkeydown={handleKeydown}
+					disabled={isSaving}
+				></textarea>
+
+				{#if errorMessage}
+					<p class="edit-error">{errorMessage}</p>
+				{/if}
+
+				<div class="edit-actions">
+					<button
+						class="edit-action-btn save-btn"
+						onclick={() => void handleSave()}
+						disabled={!canSave}
+					>
+						Save
+					</button>
+					<button
+						class="edit-action-btn cancel-btn"
+						onclick={handleCancel}
+						disabled={isSaving}
+					>
+						Cancel
+					</button>
+				</div>
+			</div>
+		{:else}
+			<p class="comment-text">
+				{comment.text?.trim() ?? "(No comment text)"}
+			</p>
+		{/if}
 	</div>
 </div>
 
@@ -223,6 +353,11 @@
 		opacity: 0.8;
 	}
 
+	.action-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
 	.resolve-btn:hover {
 		background: var(--interactive-success);
 		color: var(--text-on-accent);
@@ -249,6 +384,81 @@
 		font-size: 0.9rem;
 		word-wrap: break-word;
 		overflow-wrap: break-word;
+		white-space: pre-wrap;
+	}
+
+	.comment-edit {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.comment-textarea {
+		width: 100%;
+		padding: 0.5rem;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 6px;
+		background: var(--background-secondary);
+		color: var(--text-normal);
+		font-size: 0.9rem;
+		line-height: 1.4;
+		resize: vertical;
+		font-family: inherit;
+	}
+
+	.comment-textarea:focus-visible {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 2px;
+	}
+
+	.edit-error {
+		margin: 0;
+		color: var(--text-error);
+		font-size: 0.8rem;
+	}
+
+	.edit-actions {
+		display: flex;
+		gap: 0.5rem;
+		justify-content: flex-end;
+	}
+
+	.edit-action-btn {
+		padding: 0.35rem 0.75rem;
+		border-radius: 6px;
+		border: 1px solid transparent;
+		font-size: 0.85rem;
+		cursor: pointer;
+		transition:
+			background 0.2s ease,
+			color 0.2s ease,
+			border-color 0.2s ease;
+	}
+
+	.save-btn {
+		background: var(--interactive-accent);
+		color: var(--text-on-accent);
+		border-color: var(--interactive-accent);
+	}
+
+	.save-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.cancel-btn {
+		background: var(--background-primary);
+		color: var(--text-muted);
+		border-color: var(--background-modifier-border);
+	}
+
+	.cancel-btn:hover {
+		color: var(--text-normal);
+	}
+
+	.cancel-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	/* Resolved state styling */

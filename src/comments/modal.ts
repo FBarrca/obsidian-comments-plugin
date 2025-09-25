@@ -1,8 +1,18 @@
-﻿import { App, Modal, Setting, TextAreaComponent } from "obsidian";
+import { App, Modal, Setting, TextAreaComponent } from "obsidian";
 
-export function requestCommentText(app: App, initialText = ""): Promise<string | null> {
+export interface CommentPromptOptions {
+	title?: string;
+	placeholder?: string;
+	ctaLabel?: string;
+}
+
+export function requestCommentText(
+	app: App,
+	initialText = "",
+	options?: CommentPromptOptions,
+): Promise<string | null> {
 	return new Promise((resolve) => {
-		const modal = new CommentPromptModal(app, initialText, resolve);
+		const modal = new CommentPromptModal(app, initialText, resolve, options);
 		modal.open();
 	});
 }
@@ -14,9 +24,10 @@ class CommentPromptModal extends Modal {
 		app: App,
 		private readonly initial: string,
 		private readonly onSubmit: (value: string | null) => void,
+		private readonly options?: CommentPromptOptions,
 	) {
 		super(app);
-		this.titleEl.setText("Add comment");
+		this.setModalTitle();
 	}
 
 	onOpen() {
@@ -26,7 +37,7 @@ class CommentPromptModal extends Modal {
 		setting.settingEl.addClass("cm-comment-modal-setting");
 		setting.addTextArea((component) => {
 			this.input = component;
-			component.setPlaceholder("Enter comment text");
+			component.setPlaceholder(this.options?.placeholder ?? "Enter comment text");
 			component.setValue(this.initial);
 			component.inputEl.rows = 4;
 			setTimeout(() => component.inputEl.focus(), 0);
@@ -40,14 +51,16 @@ class CommentPromptModal extends Modal {
 		const cancel = buttons.createEl("button", { text: "Cancel" });
 		cancel.addEventListener("click", () => this.closeWith(null));
 
-		const submit = buttons.createEl("button", { text: "Save" });
-		submit.addEventListener("click", () => this.closeWith(this.input.getValue().trim()));
+		const submitLabel =
+			this.options?.ctaLabel?.trim() || (this.initial.trim().length ? "Update" : "Save");
+		const submit = buttons.createEl("button", { text: submitLabel });
+		submit.addEventListener("click", () => this.submitCurrentValue());
 		submit.addClass("mod-cta");
 
 		this.modalEl.addEventListener("keydown", (event) => {
 			if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
 				event.preventDefault();
-				this.closeWith(this.input.getValue().trim());
+				this.submitCurrentValue();
 			}
 		});
 	}
@@ -56,8 +69,24 @@ class CommentPromptModal extends Modal {
 		this.contentEl.empty();
 	}
 
+	private submitCurrentValue() {
+		const value = this.input.getValue().trim();
+		this.closeWith(value);
+	}
+
 	private closeWith(value: string | null) {
 		this.close();
 		this.onSubmit(value);
+	}
+
+	private setModalTitle() {
+		const customTitle = this.options?.title?.trim();
+		if (customTitle) {
+			this.titleEl.setText(customTitle);
+			return;
+		}
+
+		const hasInitial = this.initial.trim().length > 0;
+		this.titleEl.setText(hasInitial ? "Edit comment" : "Add comment");
 	}
 }

@@ -12,6 +12,7 @@
 		threadInlineSpacing?: number;
 		minThreadWidth?: number;
 		databaseAPI?: any; // CommentAPIWithDatabase
+		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 	}
 
 	let {
@@ -23,6 +24,7 @@
 		threadInlineSpacing = 12,
 		minThreadWidth = 220,
 		databaseAPI,
+		onEdit,
 	}: Props = $props();
 
 	let threadElement: HTMLElement | null = null;
@@ -191,7 +193,14 @@
 
 <div bind:this={layerElement} class="cm-thread-layer" style="position: relative;">
 	<div bind:this={threadElement}>
-		<CommentThread {comments} {databaseAPI} {editorView} {onClose} style="display: block;" />
+		<CommentThread
+			{comments}
+			{databaseAPI}
+			{editorView}
+			{onClose}
+			{onEdit}
+			style="display: block;"
+		/>
 	</div>
 </div>
 

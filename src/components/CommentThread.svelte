@@ -10,6 +10,7 @@
 		databaseAPI?: any; // CommentAPIWithDatabase
 		editorView?: any; // EditorView from CodeMirror
 		onClose?: () => void;
+		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 	}
 
 	let {
@@ -20,6 +21,7 @@
 		databaseAPI,
 		editorView,
 		onClose,
+		onEdit,
 	}: Props = $props();
 
 	let computedStyle = $derived(width ? `width: ${width}px;` : "");
@@ -36,7 +38,7 @@
 	style={finalStyle}
 >
 	{#each comments as comment (comment.id)}
-		<CommentThreadItem {comment} {databaseAPI} {editorView} {onClose} />
+		<CommentThreadItem {comment} {databaseAPI} {editorView} {onClose} {onEdit} />
 	{/each}
 </div>
 

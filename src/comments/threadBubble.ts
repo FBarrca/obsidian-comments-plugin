@@ -1,10 +1,12 @@
 import { EditorState } from "@codemirror/state";
 import { BlockInfo, EditorView } from "@codemirror/view";
+import { Notice } from "obsidian";
 import type { EventRef, Workspace } from "obsidian";
 import type { CommentRange } from "./model";
 import { commentField, indexToArray } from "./state";
 import { getDatabaseAPI } from "./selectors";
 import { setDatabaseAPI } from "./model";
+import type { CommentAPIWithDatabase } from "./apiWithDatabase";
 import { mount, unmount } from "svelte";
 import CommentThreadLayer from "../components/CommentThreadLayer.svelte";
 
@@ -21,12 +23,15 @@ const THREAD_LAYER_CLASS = "cm-thread-layer";
 
 const openThreadCleanup = new WeakMap<HTMLElement, () => void>();
 
-// Global reference to the database API
-let globalDatabaseAPI: unknown = null;
-
-export function setGlobalDatabaseAPI(api: unknown) {
+// Global references shared with UI layers
+let globalDatabaseAPI: CommentAPIWithDatabase | null = null;
+export function setGlobalDatabaseAPI(api: CommentAPIWithDatabase) {
 	globalDatabaseAPI = api;
 }
+
+type ThreadLayerInstance = Record<string, unknown> & {
+	$set?: (props: { comments: CommentRange[] }) => void;
+};
 
 type _WorkspaceResizeBinding = {
 	workspace: Workspace;
@@ -126,7 +131,7 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 	layer.appendChild(container);
 
 	// Get the database API from the state or use the global one
-	let databaseAPI = getDatabaseAPI(view);
+	let databaseAPI = getDatabaseAPI(view) as CommentAPIWithDatabase | null;
 
 	// If not in state, use global API and set it in state
 	if (!databaseAPI && globalDatabaseAPI) {
@@ -135,14 +140,61 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 		view.dispatch({ effects: setDatabaseAPI.of({ api: globalDatabaseAPI }) });
 	}
 
+	let threadComments = comments.map((comment) => ({ ...comment }));
+	let svelteComponent: ThreadLayerInstance | null = null;
+
+	const handleEditComment = async (commentId: string, nextText: string) => {
+		const api =
+			(getDatabaseAPI(view) as CommentAPIWithDatabase | null) ??
+			databaseAPI ??
+			globalDatabaseAPI;
+		if (!api || typeof api.updateCommentCommand !== "function") {
+			console.warn("editComment: database API not available", { id: commentId });
+			return false;
+		}
+
+		const trimmed = nextText.trim();
+		if (!trimmed.length) {
+			return false;
+		}
+
+		const current = threadComments.find((item) => item.id === commentId);
+		const currentText = (current?.text ?? "").trim();
+		if (trimmed === currentText) {
+			return true;
+		}
+
+		try {
+			const success = await api.updateCommentCommand(view, commentId, { text: trimmed });
+			if (!success) {
+				new Notice("Failed to update comment");
+				return false;
+			}
+
+			if (current) {
+				threadComments = threadComments.map((item) =>
+					item.id === commentId ? { ...item, text: trimmed } : item,
+				);
+				svelteComponent?.$set?.({ comments: threadComments });
+			}
+
+			return true;
+		} catch (error) {
+			console.error("Failed to update comment:", { id: commentId, error });
+			new Notice("Failed to update comment");
+			return false;
+		}
+	};
+
 	// Mount the Svelte component
-	const svelteComponent = mount(CommentThreadLayer, {
+	svelteComponent = mount(CommentThreadLayer, {
 		target: container,
 		props: {
-			comments,
+			comments: threadComments,
 			markerElement: markerEl,
 			editorView: view,
 			databaseAPI,
+			onEdit: handleEditComment,
 			onClose: () => {
 				closeThreadElement(markerEl);
 			},
@@ -155,7 +207,10 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 
 	// Register cleanup.
 	openThreadCleanup.set(markerEl, () => {
-		unmount(svelteComponent);
+		if (svelteComponent) {
+			unmount(svelteComponent);
+			svelteComponent = null;
+		}
 		container.remove();
 	});
 }
