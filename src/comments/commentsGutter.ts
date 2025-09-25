@@ -7,11 +7,12 @@ import {
 	combineConfig,
 } from "@codemirror/state";
 import { BlockInfo, EditorView, ViewUpdate, WidgetType } from "@codemirror/view";
+import { mount, unmount } from "svelte";
 import { activeGutters, gutters, GutterMarker } from "./rightGutter";
-import { setIcon } from "obsidian";
 import { addOrUpdateComment, removeComment } from "./model";
 import { handleCommentMarkerPointerDown } from "./threadBubble";
 import { commentField, indexToArray } from "./state";
+import CommentIndicatorMarker from "../components/CommentIndicatorMarker.svelte";
 
 type Handlers = {
 	[event: string]: (view: EditorView, line: BlockInfo, event: Event) => boolean;
@@ -30,6 +31,9 @@ interface CommentsIndicatorConfig {
 	domEventHandlers?: Handlers;
 }
 
+type CommentMarkerInstance = Record<string, unknown>;
+const markerInstances = new WeakMap<HTMLElement, CommentMarkerInstance>();
+
 class CommentsIndicatorMarker extends GutterMarker {
 	constructor(
 		readonly count: number,
@@ -41,28 +45,25 @@ class CommentsIndicatorMarker extends GutterMarker {
 		return this.count === other.count && this.label === other.label;
 	}
 	toDOM() {
-		const container = document.createElement("span");
-		container.className = "cm-commentIndicator-marker";
-
-		const icon = document.createElement("span");
-		icon.className = "cm-commentIndicator-icon";
-		setIcon(icon, "message-square-text");
-		container.append(icon);
-
-		const safeCount = Math.max(0, this.count);
-		const title = safeCount > 1 ? `${safeCount} comments` : "One comment";
-		container.setAttribute("aria-label", title);
-		container.dataset.commentCount = safeCount.toString();
-
-		if (safeCount > 1) {
-			container.appendChild(document.createTextNode(" "));
-			const countSpan = document.createElement("span");
-			countSpan.className = "cm-commentIndicator-count";
-			countSpan.textContent = this.label;
-			container.append(countSpan);
+		const host = document.createElement("span");
+		const component = mount(CommentIndicatorMarker, {
+			target: host,
+			props: {
+				count: this.count,
+				label: this.label,
+			},
+		});
+		const element = (host.firstElementChild as HTMLElement | null) ?? host;
+		markerInstances.set(element, component);
+		return element;
+	}
+	destroy(dom: HTMLElement) {
+		const instance = markerInstances.get(dom);
+		if (!instance) {
+			return;
 		}
-
-		return container;
+		markerInstances.delete(dom);
+		void unmount(instance);
 	}
 }
 
