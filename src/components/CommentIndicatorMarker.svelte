@@ -45,50 +45,78 @@
 		position: relative;
 		display: inline-flex;
 		align-items: center;
-		gap: 2px;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
 		cursor: pointer;
-		padding: 4px 8px;
-		padding-right: 14px;
-		padding-bottom: 2px;
-		border-radius: 12px;
-		background: var(--background-modifier-hover);
+		padding: 0;
 		border: none;
-		transition: all 0.15s ease;
+		color: var(--text-muted);
+		transition:
+			transform 0.15s ease,
+			color 0.15s ease;
+		overflow: visible;
+	}
+
+	.cm-commentIndicator-marker::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background: var(--background-modifier-hover);
 		box-shadow: 0 1px 2px var(--shadow-s);
-		font-size: 0.8em;
-		line-height: 1;
+		transition:
+			background 0.15s ease,
+			box-shadow 0.15s ease;
+		pointer-events: none;
+		z-index: 0;
 	}
 
 	.cm-commentIndicator-marker:hover {
-		background: var(--background-modifier-active-hover);
-		border: none;
 		transform: translateY(-1px);
+		color: var(--text-normal);
+	}
+
+	.cm-commentIndicator-marker:hover::before {
+		background: var(--background-modifier-active-hover);
 		box-shadow: 0 2px 6px var(--shadow-s);
 	}
 
 	.cm-commentIndicator-marker.is-open {
-		background: var(--interactive-accent);
 		color: var(--text-on-accent);
-		border: none;
+	}
+
+	.cm-commentIndicator-marker.is-open::before {
+		background: var(--interactive-accent);
 		box-shadow: 0 3px 8px var(--shadow-s);
 	}
 
-	.cm-commentIndicator-marker.is-open:hover {
+	.cm-commentIndicator-marker.is-open:hover::before {
 		background: var(--interactive-accent-hover);
-		border: none;
 	}
 
 	.cm-commentIndicator-icon {
-		width: 14px;
-		height: 14px;
-		color: var(--text-muted);
-		transition: all 0.15s ease;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		color: inherit;
+		transition:
+			transform 0.15s ease,
+			color 0.15s ease;
 		flex-shrink: 0;
+		position: relative;
+		z-index: 1;
+	}
+
+	:global(.cm-commentIndicator-icon svg) {
+		width: 16px;
+		height: 16px;
 	}
 
 	.cm-commentIndicator-marker:hover .cm-commentIndicator-icon,
 	.cm-commentIndicator-marker.is-open .cm-commentIndicator-icon {
-		color: var(--text-normal);
 		transform: scale(1.1);
 	}
 
@@ -98,41 +126,40 @@
 
 	.cm-commentIndicator-suffix {
 		position: absolute;
-		bottom: -4px;
-		right: 2px;
-		font-weight: 700;
-		font-size: 0.68em;
-		width: 16px;
-		height: 16px;
+		bottom: -5px;
+		right: -1px;
+		width: 18px;
+		height: 18px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		border-radius: 50%;
-		padding: 0;
+		border: 2px solid var(--background-primary);
+		font-weight: 700;
+		font-size: 0.65rem;
+		line-height: 1;
 		background: var(--interactive-accent);
 		color: var(--text-on-accent);
-		text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
-		transition: all 0.15s ease;
-		box-shadow: 0 2px 4px var(--shadow-s);
-		z-index: 1;
+		text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+		transition:
+			transform 0.15s ease,
+			background 0.15s ease,
+			color 0.15s ease,
+			box-shadow 0.15s ease;
+		box-shadow: 0 2px 6px var(--shadow-s);
+		z-index: 2;
+		min-width: 18px;
+		min-height: 18px;
 	}
 
 	.cm-commentIndicator-marker:hover .cm-commentIndicator-suffix {
 		background: var(--interactive-accent-hover);
-		transform: scale(1.1);
-		box-shadow: 0 2px 6px var(--shadow-s);
-		font-weight: 700;
-		width: 16px;
-		height: 16px;
+		transform: scale(1.05);
 	}
 
 	.cm-commentIndicator-marker.is-open .cm-commentIndicator-suffix {
 		background: var(--text-on-accent);
 		color: var(--interactive-accent);
-		font-weight: 700;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-		width: 16px;
-		height: 16px;
 	}
 
 	.cm-commentIndicator-marker.new-comments {
@@ -140,7 +167,6 @@
 	}
 
 	.cm-commentIndicator-marker.active {
-		border: none;
 		animation: breathe 2s ease-in-out infinite;
 	}
 
@@ -150,7 +176,7 @@
 			transform: scale(1);
 		}
 		50% {
-			transform: scale(1.15);
+			transform: scale(1.1);
 		}
 	}
 
