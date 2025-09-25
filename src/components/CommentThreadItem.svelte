@@ -27,6 +27,12 @@
 	let isSaving = $state(false);
 	let errorMessage = $state<string | null>(null);
 	let textareaEl = $state<HTMLTextAreaElement | null>(null);
+	let renderedText = $state(comment.text ?? "");
+	let lastCommentText = $state(comment.text ?? "");
+	let dfeatisplayText = $derived(() => {
+		const text = renderedText.trim();
+		return text.length ? text : "(No comment text)";
+	});
 
 	let canEdit = $derived(
 		Boolean(onEdit) || Boolean(databaseAPI?.updateCommentCommand && editorView),
@@ -37,8 +43,16 @@
 	let canSave = $derived(canEdit && !isSaving && hasChanges && trimmedDraft.length > 0);
 
 	$effect(() => {
+		const propText = comment.text ?? "";
+		if (propText !== lastCommentText) {
+			lastCommentText = propText;
+			renderedText = propText;
+		}
+	});
+
+	$effect(() => {
 		if (!isEditing) {
-			draftText = comment.text ?? "";
+			draftText = renderedText;
 		}
 	});
 
@@ -127,6 +141,7 @@
 
 			isEditing = false;
 			draftText = trimmedDraft;
+			renderedText = trimmedDraft;
 		} catch (error) {
 			console.error("Failed to update comment:", error);
 			errorMessage = "Failed to update comment.";
@@ -264,7 +279,7 @@
 			</div>
 		{:else}
 			<p class="comment-text">
-				{comment.text?.trim() ?? "(No comment text)"}
+				{displayText()}
 			</p>
 		{/if}
 	</div>
