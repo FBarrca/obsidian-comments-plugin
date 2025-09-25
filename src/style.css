@@ -127,15 +127,6 @@ If your plugin does not need CSS, delete this file.
 	border-left-width: 0 !important;
 }
 
-.cm-commentIndicator-marker {
-	display: inline-flex;
-	align-items: flex-start;
-	gap: 8px;
-	color: var(--text-muted);
-	position: relative;
-	overflow: visible;
-}
-
 .cm-thread-layer {
 	position: absolute;
 	inset: 0;
@@ -146,32 +137,6 @@ If your plugin does not need CSS, delete this file.
 
 .cm-thread-layer .cm-commentIndicator-thread {
 	pointer-events: auto;
-}
-
-.cm-commentIndicator-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	border-radius: 999px;
-	background: var(--background-modifier-hover);
-	color: inherit;
-	transition:
-		background 120ms ease,
-		color 120ms ease,
-		box-shadow 120ms ease;
-	cursor: pointer;
-}
-
-.cm-commentIndicator-marker:hover .cm-commentIndicator-icon {
-	background: var(--background-modifier-active-hover);
-}
-
-.cm-commentIndicator-marker.is-open .cm-commentIndicator-icon {
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-	box-shadow: 0 2px 6px var(--shadow-s);
 }
 
 .cm-commentIndicator-thread {

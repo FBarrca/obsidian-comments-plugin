@@ -29,7 +29,7 @@
 	let textareaEl = $state<HTMLTextAreaElement | null>(null);
 	let renderedText = $state(comment.text ?? "");
 	let lastCommentText = $state(comment.text ?? "");
-	let dfeatisplayText = $derived(() => {
+	let displayText = $derived(() => {
 		const text = renderedText.trim();
 		return text.length ? text : "(No comment text)";
 	});
