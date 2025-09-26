@@ -3,7 +3,7 @@
 
 	interface Props {
 		comment: CommentRange;
-		onResolve?: (commentId: string) => void;
+		onResolve?: (commentId: string) => Promise<boolean | void> | boolean | void;
 		onDelete?: (commentId: string) => void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 		databaseAPI?: any; // CommentAPIWithDatabase
@@ -25,6 +25,7 @@
 	let isEditing = $state(false);
 	let draftText = $state(comment.text ?? "");
 	let isSaving = $state(false);
+	let isResolving = $state(false);
 	let errorMessage = $state<string | null>(null);
 	let textareaEl = $state<HTMLTextAreaElement | null>(null);
 	let renderedText = $state(comment.text ?? "");
@@ -56,8 +57,18 @@
 		}
 	});
 
-	function handleResolve() {
-		onResolve?.(comment.id);
+	async function handleResolve() {
+		if (!onResolve || isResolving) {
+			return;
+		}
+		isResolving = true;
+		try {
+			await onResolve(comment.id);
+		} catch (error) {
+			console.error("Failed to resolve comment:", error);
+		} finally {
+			isResolving = false;
+		}
 	}
 
 	async function handleDelete() {
@@ -184,6 +195,7 @@
 					onclick={handleResolve}
 					title="Resolve comment"
 					aria-label="Resolve comment"
+					disabled={isResolving}
 				>
 					<svg
 						width="14"

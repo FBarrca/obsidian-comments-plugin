@@ -9,6 +9,7 @@
 		style?: string;
 		databaseAPI?: any; // CommentAPIWithDatabase
 		editorView?: any; // EditorView from CodeMirror
+		onResolve?: (commentId: string) => Promise<boolean | void> | boolean | void;
 		onClose?: () => void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 	}
@@ -20,6 +21,7 @@
 		style: customStyle,
 		databaseAPI,
 		editorView,
+		onResolve,
 		onClose,
 		onEdit,
 	}: Props = $props();
@@ -38,7 +40,7 @@
 	style={finalStyle}
 >
 	{#each comments as comment (comment.id)}
-		<CommentThreadItem {comment} {databaseAPI} {editorView} {onClose} {onEdit} />
+		<CommentThreadItem {comment} {databaseAPI} {editorView} {onResolve} {onClose} {onEdit} />
 	{/each}
 </div>
 

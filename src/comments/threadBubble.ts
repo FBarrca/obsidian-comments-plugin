@@ -185,6 +185,39 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 			return false;
 		}
 	};
+	const handleResolveComment = async (commentId: string) => {
+		const api =
+			(getDatabaseAPI(view) as CommentAPIWithDatabase | null) ??
+			databaseAPI ??
+			globalDatabaseAPI;
+		if (!api || typeof api.resolveCommentCommand !== "function") {
+			console.warn("resolveComment: database API not available", { id: commentId });
+			return false;
+		}
+
+		const current = threadComments.find((item) => item.id === commentId);
+		if (current?.resolved) {
+			return true;
+		}
+
+		try {
+			const success = await api.resolveCommentCommand(view, commentId, true);
+			if (!success) {
+				new Notice("Failed to resolve comment");
+				return false;
+			}
+
+			threadComments = threadComments.map((item) =>
+				item.id === commentId ? { ...item, resolved: true } : item,
+			);
+			svelteComponent?.$set?.({ comments: threadComments });
+			return true;
+		} catch (error) {
+			console.error("Failed to resolve comment:", { id: commentId, error });
+			new Notice("Failed to resolve comment");
+			return false;
+		}
+	};
 
 	// Mount the Svelte component
 	svelteComponent = mount(CommentThreadLayer, {
@@ -194,6 +227,7 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 			markerElement: markerEl,
 			editorView: view,
 			databaseAPI,
+			onResolve: handleResolveComment,
 			onEdit: handleEditComment,
 			onClose: () => {
 				closeThreadElement(markerEl);

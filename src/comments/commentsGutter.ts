@@ -32,17 +32,27 @@ interface CommentsIndicatorConfig {
 }
 
 type CommentMarkerInstance = Record<string, unknown>;
+
+type CommentLineCount = {
+	total: number;
+	resolved: number;
+};
 const markerInstances = new WeakMap<HTMLElement, CommentMarkerInstance>();
 
 class CommentsIndicatorMarker extends GutterMarker {
 	constructor(
 		readonly count: number,
 		readonly label: string,
+		readonly resolvedCount: number,
 	) {
 		super();
 	}
 	eq(other: CommentsIndicatorMarker) {
-		return this.count === other.count && this.label === other.label;
+		return (
+			this.count === other.count &&
+			this.label === other.label &&
+			this.resolvedCount === other.resolvedCount
+		);
 	}
 	toDOM() {
 		const host = document.createElement("span");
@@ -51,6 +61,7 @@ class CommentsIndicatorMarker extends GutterMarker {
 			props: {
 				count: this.count,
 				label: this.label,
+				resolvedCount: this.resolvedCount,
 			},
 		});
 		const element = (host.firstElementChild as HTMLElement | null) ?? host;
@@ -106,19 +117,29 @@ function maxCommentNumber(lines: number) {
    Marker derivation
 ------------------------------------------- */
 
-function collectCommentLineCounts(state: EditorState): Map<number, number> {
+function collectCommentLineCounts(state: EditorState): Map<number, CommentLineCount> {
 	const commentState = state.field(commentField, false);
 	if (!commentState) {
 		return new Map();
 	}
 
 	const doc = state.doc;
-	const counts = new Map<number, number>();
+	const counts = new Map<number, CommentLineCount>();
 	for (const comment of indexToArray(commentState.byId)) {
 		const fromLine = doc.lineAt(comment.from).number;
 		const toLine = doc.lineAt(comment.to).number;
+		const isResolved = !!comment.resolved;
 		for (let lineNo = fromLine; lineNo <= toLine; lineNo++) {
-			counts.set(lineNo, (counts.get(lineNo) ?? 0) + 1);
+			const entry = counts.get(lineNo);
+			if (entry) {
+				entry.total += 1;
+				if (isResolved) entry.resolved += 1;
+			} else {
+				counts.set(lineNo, {
+					total: 1,
+					resolved: isResolved ? 1 : 0,
+				});
+			}
 		}
 	}
 
@@ -130,18 +151,18 @@ function computeCommentMarkers(state: EditorState) {
 	return buildCommentMarkerSet(state, lineCounts);
 }
 
-function buildCommentMarkerSet(state: EditorState, lineCounts: Map<number, number>) {
+function buildCommentMarkerSet(state: EditorState, lineCounts: Map<number, CommentLineCount>) {
 	const cfg = state.facet(commentsIndicatorConfig);
 	const ranges: { from: number; to: number; value: GutterMarker }[] = [];
 
-	for (const [lineNo, count] of lineCounts) {
+	for (const [lineNo, info] of lineCounts) {
 		if (lineNo < 1 || lineNo > state.doc.lines) continue;
 		const line = state.doc.line(lineNo);
-		const label = cfg.formatNumber(count, state);
+		const label = cfg.formatNumber(info.total, state);
 		ranges.push({
 			from: line.from,
 			to: line.from,
-			value: new CommentsIndicatorMarker(count, label),
+			value: new CommentsIndicatorMarker(info.total, label, info.resolved),
 		});
 	}
 
@@ -199,7 +220,7 @@ const commentsIndicatorGutter = activeGutters.compute([commentsIndicatorConfig],
 	// Optional: keep spacer if you want gutter width stable for large format numbers
 	initialSpacer(view: EditorView) {
 		const maxCount = maxCommentNumber(view.state.doc.lines);
-		return new CommentsIndicatorMarker(maxCount, formatCommentNumber(view, maxCount));
+		return new CommentsIndicatorMarker(maxCount, formatCommentNumber(view, maxCount), 0);
 	},
 	updateSpacer(spacer: GutterMarker, update: ViewUpdate) {
 		const maxCount = maxCommentNumber(update.view.state.doc.lines);
@@ -207,7 +228,7 @@ const commentsIndicatorGutter = activeGutters.compute([commentsIndicatorConfig],
 		const marker = spacer as CommentsIndicatorMarker;
 		return marker.count === maxCount && marker.label === maxLabel
 			? spacer
-			: new CommentsIndicatorMarker(maxCount, maxLabel);
+			: new CommentsIndicatorMarker(maxCount, maxLabel, 0);
 	},
 	domEventHandlers: state.facet(commentsIndicatorConfig).domEventHandlers,
 	side: "after",

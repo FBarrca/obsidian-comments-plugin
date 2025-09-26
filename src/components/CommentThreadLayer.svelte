@@ -12,6 +12,7 @@
 		threadInlineSpacing?: number;
 		minThreadWidth?: number;
 		databaseAPI?: any; // CommentAPIWithDatabase
+		onResolve?: (commentId: string) => Promise<boolean | void> | boolean | void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 	}
 
@@ -24,6 +25,7 @@
 		threadInlineSpacing = 12,
 		minThreadWidth = 220,
 		databaseAPI,
+		onResolve,
 		onEdit,
 	}: Props = $props();
 
@@ -197,6 +199,7 @@
 			{comments}
 			{databaseAPI}
 			{editorView}
+			{onResolve}
 			{onClose}
 			{onEdit}
 			style="display: block;"

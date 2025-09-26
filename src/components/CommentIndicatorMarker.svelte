@@ -4,6 +4,7 @@
 	interface Props {
 		count: number;
 		label: string;
+		resolvedCount?: number;
 		isOpen?: boolean;
 		hasNewComments?: boolean;
 		isActive?: boolean;
@@ -12,17 +13,59 @@
 	let {
 		count,
 		label,
+		resolvedCount = 0,
 		isOpen = false,
 		hasNewComments = false,
 		isActive = false,
 	}: Props = $props();
 
-	let countSafe = $derived(Math.max(0, count));
-	let title = $derived(countSafe > 1 ? `${countSafe} comments` : "Comments");
+	function computeTitle(total: number, unresolved: number): string {
+		if (!total) {
+			return "Comments";
+		}
+
+		if (unresolved > 0) {
+			return total > 1 ? `${total} comments` : "Comment";
+		}
+
+		return total > 1 ? `${total} resolved comments` : "Resolved comment";
+	}
+
+	function computeAriaLabel(total: number, unresolved: number): string {
+		if (!total) {
+			return "No comments";
+		}
+
+		if (unresolved > 0) {
+			const base =
+				unresolved === 1 ? "1 unresolved comment" : `${unresolved} unresolved comments`;
+			return total === unresolved ? base : `${base} (total ${total})`;
+		}
+
+		return total === 1 ? "Resolved comment" : `${total} resolved comments`;
+	}
+
+	let countSafe = $derived(Math.max(0, Number(count ?? 0)));
+	let resolvedSafe = $derived(Math.min(countSafe, Math.max(0, Number(resolvedCount ?? 0))));
+	let unresolvedCount = $derived(Math.max(0, countSafe - resolvedSafe));
+	let hasUnresolved = $derived(unresolvedCount > 0);
+
+	let title = $derived(computeTitle(countSafe, unresolvedCount));
+	let ariaLabel = $derived(computeAriaLabel(countSafe, unresolvedCount));
+	let iconName = $derived(!countSafe || hasUnresolved ? "message-square-text" : "check-circle");
+	let suffixValue = $derived(
+		hasUnresolved ? String(unresolvedCount) : String(label ?? countSafe),
+	);
+	let showSuffix = $derived(hasUnresolved ? unresolvedCount > 0 : countSafe > 1);
 	let icon = $state<HTMLElement | null>(null);
 
 	$effect(() => {
-		if (icon) setIcon(icon, "message-square-text");
+		if (!icon) {
+			return;
+		}
+
+		const nextIcon = iconName || "message-square-text";
+		setIcon(icon, nextIcon);
 	});
 </script>
 
@@ -31,12 +74,16 @@
 	class:is-open={isOpen}
 	class:new-comments={hasNewComments}
 	class:active={isActive}
-	aria-label={title}
+	class:all-resolved={!hasUnresolved && countSafe > 0}
+	aria-label={ariaLabel}
+	{title}
 	data-comment-count={countSafe}
+	data-comments-resolved={resolvedSafe}
+	data-comments-unresolved={unresolvedCount}
 >
 	<span class="cm-commentIndicator-icon" bind:this={icon}></span>
-	{#if countSafe > 1}
-		<span class="cm-commentIndicator-suffix">{countSafe}</span>
+	{#if showSuffix}
+		<span class="cm-commentIndicator-suffix">{suffixValue}</span>
 	{/if}
 </span>
 
@@ -80,6 +127,32 @@
 	.cm-commentIndicator-marker:hover::before {
 		background: var(--background-modifier-active-hover);
 		box-shadow: 0 2px 6px var(--shadow-s);
+	}
+
+	.cm-commentIndicator-marker.all-resolved {
+		color: var(--interactive-success);
+	}
+
+	.cm-commentIndicator-marker.all-resolved::before {
+		background: color-mix(
+			in srgb,
+			var(--interactive-success) 30%,
+			var(--background-modifier-hover)
+		);
+		box-shadow: 0 2px 6px var(--shadow-s);
+	}
+
+	.cm-commentIndicator-marker.all-resolved:hover::before {
+		background: color-mix(
+			in srgb,
+			var(--interactive-success) 45%,
+			var(--background-modifier-active-hover)
+		);
+	}
+
+	.cm-commentIndicator-marker.all-resolved .cm-commentIndicator-suffix {
+		background: var(--interactive-success);
+		color: var(--text-on-accent);
 	}
 
 	.cm-commentIndicator-marker.is-open {
