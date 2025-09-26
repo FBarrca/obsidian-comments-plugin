@@ -12,7 +12,10 @@
 		threadInlineSpacing?: number;
 		minThreadWidth?: number;
 		databaseAPI?: any; // CommentAPIWithDatabase
-		onResolve?: (commentId: string) => Promise<boolean | void> | boolean | void;
+		onResolve?: (
+			commentId: string,
+			resolved?: boolean,
+		) => Promise<boolean | void> | boolean | void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 	}
 

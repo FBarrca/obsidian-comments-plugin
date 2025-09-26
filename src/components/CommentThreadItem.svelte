@@ -3,7 +3,10 @@
 
 	interface Props {
 		comment: CommentRange;
-		onResolve?: (commentId: string) => Promise<boolean | void> | boolean | void;
+		onResolve?: (
+			commentId: string,
+			resolved?: boolean,
+		) => Promise<boolean | void> | boolean | void;
 		onDelete?: (commentId: string) => void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 		databaseAPI?: any; // CommentAPIWithDatabase
@@ -57,18 +60,29 @@
 		}
 	});
 
-	async function handleResolve() {
+	async function updateResolvedState(nextResolved: boolean) {
 		if (!onResolve || isResolving) {
 			return;
 		}
 		isResolving = true;
 		try {
-			await onResolve(comment.id);
+			await onResolve(comment.id, nextResolved);
 		} catch (error) {
-			console.error("Failed to resolve comment:", error);
+			const message = nextResolved
+				? "Failed to resolve comment:"
+				: "Failed to unresolve comment:";
+			console.error(message, error);
 		} finally {
 			isResolving = false;
 		}
+	}
+
+	async function handleResolve() {
+		await updateResolvedState(true);
+	}
+
+	async function handleUnresolve() {
+		await updateResolvedState(false);
 	}
 
 	async function handleDelete() {
@@ -189,7 +203,29 @@
 		</div>
 
 		<div class="comment-actions">
-			{#if !comment.resolved}
+			{#if comment.resolved}
+				<button
+					class="action-btn unresolve-btn"
+					onclick={handleUnresolve}
+					title="Mark as unresolved"
+					aria-label="Mark as unresolved"
+					disabled={isResolving}
+				>
+					<svg
+						width="14"
+						height="14"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<line x1="18" y1="6" x2="6" y2="18" />
+						<line x1="6" y1="6" x2="18" y2="18" />
+					</svg>
+				</button>
+			{:else}
 				<button
 					class="action-btn resolve-btn"
 					onclick={handleResolve}
@@ -387,6 +423,11 @@
 
 	.resolve-btn:hover {
 		background: var(--interactive-success);
+		color: var(--text-on-accent);
+	}
+
+	.unresolve-btn:hover {
+		background: var(--background-modifier-error);
 		color: var(--text-on-accent);
 	}
 

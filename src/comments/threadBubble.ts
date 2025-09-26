@@ -185,7 +185,7 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 			return false;
 		}
 	};
-	const handleResolveComment = async (commentId: string) => {
+	const handleResolveComment = async (commentId: string, resolved = true) => {
 		const api =
 			(getDatabaseAPI(view) as CommentAPIWithDatabase | null) ??
 			databaseAPI ??
@@ -196,25 +196,30 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 		}
 
 		const current = threadComments.find((item) => item.id === commentId);
-		if (current?.resolved) {
+		if (current?.resolved === resolved) {
 			return true;
 		}
 
+		const noticeMessage = resolved ? "Failed to resolve comment" : "Failed to reopen comment";
+		const consoleMessage = resolved
+			? "Failed to resolve comment"
+			: "Failed to unresolve comment";
+
 		try {
-			const success = await api.resolveCommentCommand(view, commentId, true);
+			const success = await api.resolveCommentCommand(view, commentId, resolved);
 			if (!success) {
-				new Notice("Failed to resolve comment");
+				new Notice(noticeMessage);
 				return false;
 			}
 
 			threadComments = threadComments.map((item) =>
-				item.id === commentId ? { ...item, resolved: true } : item,
+				item.id === commentId ? { ...item, resolved } : item,
 			);
 			svelteComponent?.$set?.({ comments: threadComments });
 			return true;
 		} catch (error) {
-			console.error("Failed to resolve comment:", { id: commentId, error });
-			new Notice("Failed to resolve comment");
+			console.error(`${consoleMessage}:`, { id: commentId, error });
+			new Notice(noticeMessage);
 			return false;
 		}
 	};

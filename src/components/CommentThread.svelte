@@ -9,7 +9,10 @@
 		style?: string;
 		databaseAPI?: any; // CommentAPIWithDatabase
 		editorView?: any; // EditorView from CodeMirror
-		onResolve?: (commentId: string) => Promise<boolean | void> | boolean | void;
+		onResolve?: (
+			commentId: string,
+			resolved?: boolean,
+		) => Promise<boolean | void> | boolean | void;
 		onClose?: () => void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
 	}
