@@ -1,6 +1,13 @@
 import { EditorView } from "@codemirror/view";
-import { CommentRange, addOrUpdateComment, removeComment, setActiveComment } from "./model";
+import {
+	CommentRange,
+	CommentReply,
+	addOrUpdateComment,
+	removeComment,
+	setActiveComment,
+} from "./model";
 import { getCommentById, getAllComments } from "./selectors";
+import { emitThreadUpdate } from "./threadEvents";
 import { CommentDatabaseService } from "./databaseService";
 import { TFile } from "obsidian";
 
@@ -39,6 +46,7 @@ export class CommentAPIWithDatabase {
 
 		// Update the editor state
 		view.dispatch({ effects: addOrUpdateComment.of(comment) });
+		emitThreadUpdate(view, comment.from);
 
 		// Persist to database
 		try {
@@ -96,6 +104,59 @@ export class CommentAPIWithDatabase {
 	}
 
 	/**
+	 * Append a reply to an existing comment
+	 */
+	async addReplyToComment(
+		view: EditorView,
+		commentId: string,
+		payload: { text: string; author?: string; replyId?: string },
+	): Promise<CommentRange | null> {
+		if (!this.currentFile) {
+			console.error("addReplyToComment: No current file set");
+			return null;
+		}
+
+		const current = getCommentById(view, commentId);
+		if (!current) {
+			console.warn("addReplyToComment: missing comment", { commentId });
+			return null;
+		}
+
+		const trimmed = payload.text.trim();
+		if (!trimmed.length) {
+			console.warn("addReplyToComment: empty text", { commentId });
+			return null;
+		}
+
+		const now = new Date().toISOString();
+		const reply: CommentReply = {
+			id: payload.replyId ?? cryptoRandomReplyId(),
+			text: trimmed,
+			author: payload.author,
+			createdAt: now,
+			updatedAt: now,
+		};
+
+		const next: CommentRange = {
+			...current,
+			replies: [...(current.replies ?? []), reply],
+			id: commentId,
+		};
+
+		console.log("addReplyToComment", { commentId, replyId: reply.id });
+		view.dispatch({ effects: addOrUpdateComment.of(next) });
+		emitThreadUpdate(view, current.from);
+
+		try {
+			await this.dbService.upsertComment(next, this.currentFile);
+		} catch (error) {
+			console.error("Failed to persist reply to database:", error);
+		}
+
+		return next;
+	}
+
+	/**
 	 * Remove a comment with database persistence
 	 */
 	async removeCommentCommand(view: EditorView, id: string): Promise<boolean> {
@@ -130,7 +191,7 @@ export class CommentAPIWithDatabase {
 	}
 
 	/**
-	 * Set active comment (no database persistence needed)
+	 * Set the currently active comment
 	 */
 	setActiveCommentCommand(view: EditorView, id: string | null): boolean {
 		console.log("setActiveCommentCommand", { id });
@@ -171,7 +232,7 @@ export class CommentAPIWithDatabase {
 		}
 
 		const selection = view.state.selection.main;
-		const id = data.id || cryptoRandomId();
+		const id = data.id || cryptoRandomCommentId();
 		console.log("addCommentFromSelection", {
 			id,
 			anchor: selection.from,
@@ -257,6 +318,10 @@ export class CommentAPIWithDatabase {
 	}
 }
 
-function cryptoRandomId() {
+function cryptoRandomCommentId() {
 	return `c_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function cryptoRandomReplyId() {
+	return `r_${Math.random().toString(36).slice(2, 9)}`;
 }

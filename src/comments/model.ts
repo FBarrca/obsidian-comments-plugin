@@ -1,4 +1,13 @@
-﻿import { StateEffect } from "@codemirror/state";
+import { StateEffect } from "@codemirror/state";
+
+/** A reply attached to a comment thread. */
+export interface CommentReply {
+	id: string;
+	text: string;
+	author?: string;
+	createdAt?: string | number | Date;
+	updatedAt?: string | number | Date;
+}
 
 /** Public shape of a comment. */
 export interface CommentRange {
@@ -9,6 +18,7 @@ export interface CommentRange {
 	author?: string;
 	createdAt?: string | number | Date;
 	resolved?: boolean;
+	replies?: CommentReply[];
 }
 
 /** Event name dispatched from the editor DOM on comment interaction. */

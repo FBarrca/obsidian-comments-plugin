@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { CommentRange } from "../types/comment";
+	import type { CommentRange, CommentReply } from "../types/comment";
 
 	interface Props {
 		comment: CommentRange;
@@ -9,12 +9,16 @@
 		) => Promise<boolean | void> | boolean | void;
 		onDelete?: (commentId: string) => void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
+		onReply?: (
+			commentId: string,
+			replyText: string,
+		) => Promise<boolean | void> | boolean | void;
 		databaseAPI?: any; // CommentAPIWithDatabase
 		editorView?: any; // EditorView from CodeMirror
 		onClose?: () => void;
 	}
 
-	let { comment, onResolve, onDelete, onEdit, databaseAPI, editorView, onClose }: Props =
+	let { comment, onResolve, onDelete, onEdit, onReply, databaseAPI, editorView, onClose }: Props =
 		$props();
 
 	function formatTimestamp(value: CommentRange["createdAt"]): string | null {
@@ -33,10 +37,19 @@
 	let textareaEl = $state<HTMLTextAreaElement | null>(null);
 	let renderedText = $state(comment.text ?? "");
 	let lastCommentText = $state(comment.text ?? "");
+	let localReplies = $state<CommentRange["replies"]>(comment.replies ?? []);
+	let lastRepliesVersion = $state(0);
+
 	let displayText = $derived(() => {
 		const text = renderedText.trim();
 		return text.length ? text : "(No comment text)";
 	});
+
+	let isReplying = $state(false);
+	let replyDraft = $state("");
+	let replyError = $state<string | null>(null);
+	let isSubmittingReply = $state(false);
+	let replyTextareaEl = $state<HTMLTextAreaElement | null>(null);
 
 	let canEdit = $derived(
 		Boolean(onEdit) || Boolean(databaseAPI?.updateCommentCommand && editorView),
@@ -46,11 +59,41 @@
 	let hasChanges = $derived(trimmedDraft !== currentText);
 	let canSave = $derived(canEdit && !isSaving && hasChanges && trimmedDraft.length > 0);
 
+	let canReply = $derived(
+		Boolean(onReply) || Boolean(databaseAPI?.addReplyToComment && editorView),
+	);
+	let trimmedReplyDraft = $derived(replyDraft.trim());
+	let canSubmitReply = $derived(canReply && !isSubmittingReply && trimmedReplyDraft.length > 0);
+
 	$effect(() => {
 		const propText = comment.text ?? "";
 		if (propText !== lastCommentText) {
 			lastCommentText = propText;
 			renderedText = propText;
+		}
+	});
+
+	$effect(() => {
+		const propReplies = comment.replies ?? [];
+		// Use a simple length check as a basic version indicator
+		// In a real app, you might use a more sophisticated versioning strategy
+		const currentVersion =
+			propReplies.length +
+			(propReplies.length > 0
+				? propReplies.reduce((sum, reply) => {
+						const updatedAtTime = reply.updatedAt
+							? new Date(reply.updatedAt).getTime()
+							: 0;
+						const createdAtTime = reply.createdAt
+							? new Date(reply.createdAt).getTime()
+							: 0;
+						return sum + (updatedAtTime || createdAtTime || 0);
+					}, 0)
+				: 0);
+
+		if (currentVersion !== lastRepliesVersion) {
+			lastRepliesVersion = currentVersion;
+			localReplies = [...propReplies];
 		}
 	});
 
@@ -172,6 +215,101 @@
 			errorMessage = "Failed to update comment.";
 		} finally {
 			isSaving = false;
+		}
+	}
+
+	function focusReplyTextarea() {
+		queueMicrotask(() => {
+			if (replyTextareaEl) {
+				replyTextareaEl.focus();
+				const length = replyTextareaEl.value.length;
+				replyTextareaEl.setSelectionRange(length, length);
+			}
+		});
+	}
+
+	function handleStartReply() {
+		if (!canReply) {
+			return;
+		}
+
+		if (isReplying) {
+			handleCancelReply();
+			return;
+		}
+
+		replyError = null;
+		replyDraft = "";
+		isReplying = true;
+		focusReplyTextarea();
+	}
+
+	function handleCancelReply() {
+		isReplying = false;
+		replyDraft = "";
+		replyError = null;
+	}
+
+	async function handleSubmitReply() {
+		if (!trimmedReplyDraft.length) {
+			replyError = "Reply cannot be empty.";
+			return;
+		}
+
+		if (!canReply) {
+			replyError = "Replying is not available.";
+			return;
+		}
+
+		isSubmittingReply = true;
+		replyError = null;
+
+		try {
+			let success = false;
+
+			if (onReply) {
+				const result = await onReply(comment.id, trimmedReplyDraft);
+				success = result !== false;
+			} else if (databaseAPI?.addReplyToComment && editorView) {
+				const result = await databaseAPI.addReplyToComment(editorView, comment.id, {
+					text: trimmedReplyDraft,
+				});
+				success = Boolean(result);
+			}
+
+			if (!success) {
+				replyError = "Failed to add reply.";
+				return;
+			}
+
+			// Add the reply to local state directly
+			const newReply: CommentReply = {
+				id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Generate a temporary ID
+				text: trimmedReplyDraft,
+				author: "Current User", // You might want to get this from props or context
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			};
+			localReplies = [...localReplies, newReply];
+
+			replyDraft = "";
+			replyError = null;
+			isReplying = false;
+		} catch (error) {
+			console.error("Failed to add reply:", error);
+			replyError = "Failed to add reply.";
+		} finally {
+			isSubmittingReply = false;
+		}
+	}
+
+	function handleReplyKeydown(event: KeyboardEvent) {
+		if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+			event.preventDefault();
+			void handleSubmitReply();
+		} else if (event.key === "Escape") {
+			event.preventDefault();
+			handleCancelReply();
 		}
 	}
 
@@ -329,6 +467,63 @@
 			<p class="comment-text">
 				{displayText()}
 			</p>
+		{/if}
+	</div>
+
+	{#if localReplies?.length}
+		<div class="comment-replies">
+			{#each localReplies as reply (reply.id)}
+				<div class="comment-reply">
+					<div class="comment-reply-author">{reply.author ?? "Anonymous"}</div>
+					<p class="comment-reply-text">{reply.text ?? "(No reply text)"}</p>
+					{#if formatTimestamp(reply.updatedAt ?? reply.createdAt)}
+						<span class="comment-reply-timestamp">
+							{formatTimestamp(reply.updatedAt ?? reply.createdAt)}
+						</span>
+					{/if}
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	<div class="reply-footer">
+		{#if isReplying}
+			<div class="reply-editor">
+				<textarea
+					bind:this={replyTextareaEl}
+					bind:value={replyDraft}
+					class="comment-textarea reply-textarea"
+					rows={Math.min(6, Math.max(2, replyDraft.split("\n").length + 1))}
+					placeholder="Reply"
+					onkeydown={handleReplyKeydown}
+					disabled={isSubmittingReply}
+				></textarea>
+
+				{#if replyError}
+					<p class="reply-error">{replyError}</p>
+				{/if}
+
+				<div class="reply-actions">
+					<button
+						class="reply-action-btn reply-save-btn"
+						onclick={() => void handleSubmitReply()}
+						disabled={!canSubmitReply}
+					>
+						Reply
+					</button>
+					<button
+						class="reply-action-btn reply-cancel-btn"
+						onclick={handleCancelReply}
+						disabled={isSubmittingReply}
+					>
+						Cancel
+					</button>
+				</div>
+			</div>
+		{:else}
+			<button class="reply-trigger-btn" onclick={handleStartReply} disabled={!canReply}>
+				Reply
+			</button>
 		{/if}
 	</div>
 </div>
@@ -491,7 +686,8 @@
 		justify-content: flex-end;
 	}
 
-	.edit-action-btn {
+	.edit-action-btn,
+	.reply-action-btn {
 		padding: 0.35rem 0.75rem;
 		border-radius: 6px;
 		border: 1px solid transparent;
@@ -503,33 +699,125 @@
 			border-color 0.2s ease;
 	}
 
-	.save-btn {
+	.save-btn,
+	.reply-save-btn {
 		background: var(--interactive-accent);
 		color: var(--text-on-accent);
 		border-color: var(--interactive-accent);
 	}
 
-	.save-btn:disabled {
+	.save-btn:disabled,
+	.reply-save-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
 	}
 
-	.cancel-btn {
+	.cancel-btn,
+	.reply-cancel-btn {
 		background: var(--background-primary);
 		color: var(--text-muted);
 		border-color: var(--background-modifier-border);
 	}
 
-	.cancel-btn:hover {
+	.cancel-btn:hover,
+	.reply-cancel-btn:hover {
 		color: var(--text-normal);
 	}
 
-	.cancel-btn:disabled {
+	.cancel-btn:disabled,
+	.reply-cancel-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
 	}
 
-	/* Resolved state styling */
+	.comment-replies {
+		margin-top: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding-left: 1.5rem;
+		border-left: 2px solid var(--background-modifier-border);
+	}
+
+	.comment-reply {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.comment-reply-author {
+		font-weight: 600;
+		color: var(--text-normal);
+		font-size: 0.85rem;
+	}
+
+	.comment-reply-text {
+		margin: 0;
+		color: var(--text-normal);
+		font-size: 0.9rem;
+		line-height: 1.4;
+		white-space: pre-wrap;
+	}
+
+	.comment-reply-timestamp {
+		color: var(--text-muted);
+		font-size: 0.75rem;
+	}
+
+	.reply-footer {
+		margin-top: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.reply-trigger-btn {
+		align-self: stretch;
+		padding: 0.45rem 0.75rem;
+		border-radius: 6px;
+		border: 1px solid var(--background-modifier-border);
+		background: var(--background-secondary);
+		color: var(--text-muted);
+		text-align: left;
+		cursor: pointer;
+		transition:
+			background 0.2s ease,
+			color 0.2s ease,
+			border-color 0.2s ease;
+	}
+
+	.reply-trigger-btn:hover {
+		background: var(--background-modifier-hover);
+		color: var(--text-normal);
+	}
+
+	.reply-trigger-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.reply-editor {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.reply-textarea {
+		min-height: 60px;
+	}
+
+	.reply-error {
+		margin: 0;
+		color: var(--text-error);
+		font-size: 0.8rem;
+	}
+
+	.reply-actions {
+		display: flex;
+		gap: 0.5rem;
+		justify-content: flex-end;
+	}
+
 	[data-comment-resolved="true"] {
 		opacity: 0.8;
 		background: var(--background-secondary);
@@ -545,13 +833,14 @@
 		opacity: 0.8;
 	}
 
-	/* Focus states for accessibility */
-	.action-btn:focus-visible {
+	.action-btn:focus-visible,
+	.reply-trigger-btn:focus-visible,
+	.edit-action-btn:focus-visible,
+	.reply-action-btn:focus-visible {
 		outline: 2px solid var(--interactive-accent);
 		outline-offset: 2px;
 	}
 
-	/* Responsive design */
 	@media (max-width: 480px) {
 		.cm-commentIndicator-item {
 			padding: 0.75rem;
@@ -567,13 +856,11 @@
 			align-self: flex-end;
 		}
 
-		.action-btn {
-			width: 32px;
-			height: 32px;
+		.comment-replies {
+			padding-left: 1rem;
 		}
 	}
 
-	/* Comment bubble styling - moved from global CSS */
 	.comment-bubble {
 		padding: 12px;
 		background: var(--background-primary);

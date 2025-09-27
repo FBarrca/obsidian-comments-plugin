@@ -15,6 +15,10 @@
 		) => Promise<boolean | void> | boolean | void;
 		onClose?: () => void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
+		onReply?: (
+			commentId: string,
+			replyText: string,
+		) => Promise<boolean | void> | boolean | void;
 	}
 
 	let {
@@ -27,6 +31,7 @@
 		onResolve,
 		onClose,
 		onEdit,
+		onReply,
 	}: Props = $props();
 
 	let computedStyle = $derived(width ? `width: ${width}px;` : "");
@@ -43,7 +48,15 @@
 	style={finalStyle}
 >
 	{#each comments as comment (comment.id)}
-		<CommentThreadItem {comment} {databaseAPI} {editorView} {onResolve} {onClose} {onEdit} />
+		<CommentThreadItem
+			{comment}
+			{databaseAPI}
+			{editorView}
+			{onResolve}
+			{onClose}
+			{onEdit}
+			{onReply}
+		/>
 	{/each}
 </div>
 

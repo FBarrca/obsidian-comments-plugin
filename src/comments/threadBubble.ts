@@ -4,7 +4,8 @@ import { Notice } from "obsidian";
 import type { EventRef, Workspace } from "obsidian";
 import type { CommentRange } from "./model";
 import { commentField, indexToArray } from "./state";
-import { getDatabaseAPI } from "./selectors";
+import { THREAD_UPDATE_EVENT, ThreadUpdateDetail } from "./threadEvents";
+import { getCommentById, getDatabaseAPI } from "./selectors";
 import { setDatabaseAPI } from "./model";
 import type { CommentAPIWithDatabase } from "./apiWithDatabase";
 import { mount, unmount } from "svelte";
@@ -140,8 +141,73 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 		view.dispatch({ effects: setDatabaseAPI.of({ api: globalDatabaseAPI }) });
 	}
 
-	let threadComments = comments.map((comment) => ({ ...comment }));
+	if (!comments.length) {
+		closeThreadElement(markerEl);
+		return;
+	}
+
+	function cloneComment(comment: CommentRange): CommentRange {
+		return {
+			...comment,
+			replies: comment.replies?.map((reply) => ({ ...reply })),
+		};
+	}
+
+	function repliesEqual(a?: CommentRange["replies"], b?: CommentRange["replies"]): boolean {
+		const left = a ?? [];
+		const right = b ?? [];
+		if (left.length !== right.length) {
+			return false;
+		}
+		for (let i = 0; i < left.length; i++) {
+			const lhs = left[i];
+			const rhs = right[i];
+			if (
+				lhs.id !== rhs.id ||
+				lhs.text !== rhs.text ||
+				lhs.author !== rhs.author ||
+				String(lhs.createdAt ?? "") !== String(rhs.createdAt ?? "") ||
+				String(lhs.updatedAt ?? "") !== String(rhs.updatedAt ?? "")
+			) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	function commentsEqual(a: CommentRange[], b: CommentRange[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			const lhs = a[i];
+			const rhs = b[i];
+			if (
+				lhs.id !== rhs.id ||
+				lhs.from !== rhs.from ||
+				lhs.to !== rhs.to ||
+				lhs.text !== rhs.text ||
+				lhs.author !== rhs.author ||
+				Boolean(lhs.resolved) !== Boolean(rhs.resolved)
+			) {
+				return false;
+			}
+			if (!repliesEqual(lhs.replies, rhs.replies)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	let threadComments = comments.map((comment) => cloneComment(comment));
 	let svelteComponent: ThreadLayerInstance | null = null;
+	let trackedLineNumber = view.state.doc.lineAt(comments[0].from).number;
+
+	function loadCommentsForLine(state: EditorState, lineNumber: number) {
+		const clamped = Math.max(1, Math.min(lineNumber, state.doc.lines));
+		const line = state.doc.line(clamped);
+		return getCommentsForLineRange(state, line.from, line.to);
+	}
 
 	const handleEditComment = async (commentId: string, nextText: string) => {
 		const api =
@@ -224,6 +290,39 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 		}
 	};
 
+	const handleReplyToComment = async (commentId: string, replyText: string) => {
+		const api =
+			(getDatabaseAPI(view) as CommentAPIWithDatabase | null) ??
+			databaseAPI ??
+			globalDatabaseAPI;
+		if (!api || typeof api.addReplyToComment !== "function") {
+			console.warn("replyToComment: database API not available", { id: commentId });
+			return false;
+		}
+		const trimmed = replyText.trim();
+		if (!trimmed.length) {
+			return false;
+		}
+		try {
+			const updated = await api.addReplyToComment(view, commentId, { text: trimmed });
+			if (!updated) {
+				new Notice("Failed to add reply");
+				return false;
+			}
+			const stateComment = getCommentById(view, commentId) ?? updated;
+			if (stateComment) {
+				threadComments = threadComments.map((item) =>
+					item.id === commentId ? { ...item, ...stateComment } : item,
+				);
+				svelteComponent?.$set?.({ comments: threadComments });
+			}
+			return true;
+		} catch (error) {
+			console.error("Failed to add reply:", { id: commentId, error });
+			new Notice("Failed to add reply");
+			return false;
+		}
+	};
 	// Mount the Svelte component
 	svelteComponent = mount(CommentThreadLayer, {
 		target: container,
@@ -234,6 +333,7 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 			databaseAPI,
 			onResolve: handleResolveComment,
 			onEdit: handleEditComment,
+			onReply: handleReplyToComment,
 			onClose: () => {
 				closeThreadElement(markerEl);
 			},
@@ -243,9 +343,33 @@ function openThreadForMarker(view: EditorView, markerEl: HTMLElement, comments: 
 			minThreadWidth: MIN_THREAD_WIDTH,
 		},
 	});
+	const handleThreadUpdate = (event: Event) => {
+		const detail = (event as CustomEvent<ThreadUpdateDetail>).detail;
+		if (!detail || detail.view !== view) {
+			return;
+		}
+		if (detail.lineNumber !== trackedLineNumber) {
+			// Allow updates triggered by other comments on the same line
+			trackedLineNumber = detail.lineNumber;
+		}
+		const updated = loadCommentsForLine(view.state, trackedLineNumber);
+		if (!updated.length) {
+			closeThreadElement(markerEl);
+			return;
+		}
+		trackedLineNumber = view.state.doc.lineAt(updated[0].from).number;
+		if (commentsEqual(threadComments, updated)) {
+			return;
+		}
+		threadComments = updated.map((comment) => cloneComment(comment));
+		svelteComponent?.$set?.({ comments: threadComments });
+	};
+
+	window.addEventListener(THREAD_UPDATE_EVENT, handleThreadUpdate);
 
 	// Register cleanup.
 	openThreadCleanup.set(markerEl, () => {
+		window.removeEventListener(THREAD_UPDATE_EVENT, handleThreadUpdate);
 		if (svelteComponent) {
 			unmount(svelteComponent);
 			svelteComponent = null;

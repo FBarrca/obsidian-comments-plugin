@@ -17,6 +17,10 @@
 			resolved?: boolean,
 		) => Promise<boolean | void> | boolean | void;
 		onEdit?: (commentId: string, nextText: string) => Promise<boolean | void> | boolean | void;
+		onReply?: (
+			commentId: string,
+			replyText: string,
+		) => Promise<boolean | void> | boolean | void;
 	}
 
 	let {
@@ -30,6 +34,7 @@
 		databaseAPI,
 		onResolve,
 		onEdit,
+		onReply,
 	}: Props = $props();
 
 	let threadElement: HTMLElement | null = null;
@@ -205,6 +210,7 @@
 			{onResolve}
 			{onClose}
 			{onEdit}
+			{onReply}
 			style="display: block;"
 		/>
 	</div>

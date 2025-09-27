@@ -1,5 +1,13 @@
 import { App, TFile } from "obsidian";
-import { CommentRange } from "./model";
+import { CommentRange, CommentReply } from "./model";
+
+export interface CommentReplyRecord {
+	id: string;
+	text: string;
+	author?: string;
+	created_at: string;
+	updated_at: string;
+}
 
 export interface CommentRecord {
 	id: string;
@@ -11,6 +19,7 @@ export interface CommentRecord {
 	created_at: string;
 	updated_at: string;
 	resolved: boolean;
+	replies?: CommentReplyRecord[];
 }
 
 export class CommentFileStorage {
@@ -28,6 +37,23 @@ export class CommentFileStorage {
 	private getRelativePath(file: TFile | string): string {
 		const filePath = typeof file === "string" ? file : file.path;
 		return filePath;
+	}
+
+	/**
+	 * Normalize various date inputs into an ISO string.
+	 */
+	private normalizeDate(value: CommentReply["createdAt"], fallbackISO: string): string {
+		if (value === undefined || value === null) {
+			return fallbackISO;
+		}
+		if (typeof value === "string") {
+			return value;
+		}
+		if (value instanceof Date) {
+			return value.toISOString();
+		}
+		const date = new Date(value);
+		return Number.isNaN(date.getTime()) ? fallbackISO : date.toISOString();
 	}
 
 	/**
@@ -73,6 +99,15 @@ export class CommentFileStorage {
 	 * Convert CommentRecord to CommentRange
 	 */
 	private recordToComment(record: CommentRecord): CommentRange {
+		const replies =
+			record.replies?.map((reply) => ({
+				id: reply.id,
+				text: reply.text,
+				author: reply.author,
+				createdAt: reply.created_at,
+				updatedAt: reply.updated_at,
+			})) ?? [];
+
 		return {
 			id: record.id,
 			from: record.from,
@@ -81,6 +116,7 @@ export class CommentFileStorage {
 			author: record.author,
 			createdAt: record.created_at,
 			resolved: record.resolved,
+			replies,
 		};
 	}
 
@@ -89,21 +125,24 @@ export class CommentFileStorage {
 	 */
 	private commentToRecord(comment: CommentRange, filePath: string): CommentRecord {
 		const now = new Date().toISOString();
-		let createdAt: string;
-		if (comment.createdAt) {
-			if (typeof comment.createdAt === "string") {
-				createdAt = comment.createdAt;
-			} else if (comment.createdAt instanceof Date) {
-				createdAt = comment.createdAt.toISOString();
-			} else {
-				// Handle number timestamp
-				createdAt = new Date(comment.createdAt).toISOString();
-			}
-		} else {
-			createdAt = now;
-		}
+		const createdAt = this.normalizeDate(comment.createdAt, now);
 
-		return {
+		const replies = (comment.replies ?? []).map((reply) => {
+			const replyCreated = this.normalizeDate(reply.createdAt, now);
+			const replyUpdated = this.normalizeDate(
+				reply.updatedAt ?? reply.createdAt,
+				replyCreated,
+			);
+			return {
+				id: reply.id,
+				text: reply.text,
+				author: reply.author,
+				created_at: replyCreated,
+				updated_at: replyUpdated,
+			};
+		});
+
+		const record: CommentRecord = {
 			id: comment.id,
 			file_path: this.getRelativePath(filePath),
 			from: comment.from,
@@ -113,7 +152,10 @@ export class CommentFileStorage {
 			created_at: createdAt,
 			updated_at: now,
 			resolved: comment.resolved || false,
+			replies: replies.length ? replies : undefined,
 		};
+
+		return record;
 	}
 
 	/**
