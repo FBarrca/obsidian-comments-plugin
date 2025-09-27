@@ -282,16 +282,24 @@
 		{#each localReplies as reply (reply.id)}
 			<div class="comment-reply">
 				<div class="comment-reply-header">
+					<div class="comment-reply-info">
+						{#if formatTimestamp(reply.updatedAt ?? reply.createdAt)}
+							<span class="comment-reply-timestamp">
+								{formatTimestamp(reply.updatedAt ?? reply.createdAt)}
+							</span>
+						{/if}
+					</div>
+
 					<div class="comment-reply-actions">
 						<button
-							class="reply-action-btn reply-edit-btn"
+							class="action-btn reply-edit-btn"
 							onclick={() => startEditingReply(reply.id, reply.text ?? "")}
 							title="Edit reply"
 							aria-label="Edit reply"
 						>
 							<svg
-								width="12"
-								height="12"
+								width="14"
+								height="14"
 								viewBox="0 0 24 24"
 								fill="none"
 								stroke="currentColor"
@@ -304,14 +312,14 @@
 							</svg>
 						</button>
 						<button
-							class="reply-action-btn reply-delete-btn"
+							class="action-btn reply-delete-btn"
 							onclick={() => deleteReply(reply.id)}
 							title="Delete reply"
 							aria-label="Delete reply"
 						>
 							<svg
-								width="12"
-								height="12"
+								width="14"
+								height="14"
 								viewBox="0 0 24 24"
 								fill="none"
 								stroke="currentColor"
@@ -344,13 +352,13 @@
 
 						<div class="reply-edit-actions">
 							<button
-								class="reply-action-btn reply-save-btn"
+								class="edit-action-btn reply-save-btn"
 								onclick={() => void saveReplyEdit(reply.id)}
 							>
 								Save
 							</button>
 							<button
-								class="reply-action-btn reply-cancel-btn"
+								class="edit-action-btn reply-cancel-btn"
 								onclick={cancelEditingReply}
 							>
 								Cancel
@@ -359,12 +367,6 @@
 					</div>
 				{:else}
 					<p class="comment-reply-text">{reply.text ?? "(No reply text)"}</p>
-				{/if}
-
-				{#if formatTimestamp(reply.updatedAt ?? reply.createdAt)}
-					<span class="comment-reply-timestamp">
-						{formatTimestamp(reply.updatedAt ?? reply.createdAt)}
-					</span>
 				{/if}
 			</div>
 		{/each}
@@ -425,20 +427,7 @@
 	.comment-reply {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.comment-reply-text {
-		margin: 0;
-		color: var(--text-normal);
-		font-size: 0.9rem;
-		line-height: 1.4;
-		white-space: pre-wrap;
-	}
-
-	.comment-reply-timestamp {
-		color: var(--text-muted);
-		font-size: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.comment-reply-header {
@@ -446,17 +435,69 @@
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: 0.25rem;
+		gap: 1rem;
+	}
+
+	.comment-reply-info {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 0.5rem;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.comment-reply-timestamp {
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		line-height: 1.2;
 	}
 
 	.comment-reply-actions {
 		display: flex;
 		gap: 0.25rem;
-		opacity: 0.7;
-		transition: opacity 0.2s ease;
+		opacity: 1;
+		flex-shrink: 0;
 	}
 
-	.comment-reply:hover .comment-reply-actions {
-		opacity: 1;
+	.comment-reply-text {
+		margin: 0;
+		color: var(--text-normal);
+		line-height: 1.5;
+		font-size: 0.9rem;
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+		white-space: pre-wrap;
+	}
+
+	.action-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		border: none;
+		border-radius: 6px;
+		background: var(--background-secondary);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: all 0.2s ease;
+		position: relative;
+	}
+
+	.action-btn:hover {
+		background: var(--interactive-accent);
+		color: var(--text-on-accent);
+	}
+
+	.action-btn:active {
+		opacity: 0.8;
+	}
+
+	.action-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.reply-edit-btn:hover {
@@ -473,7 +514,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
-		margin-top: 0.5rem;
 	}
 
 	.reply-edit-textarea {
@@ -564,7 +604,7 @@
 		outline-offset: 2px;
 	}
 
-	.reply-action-btn {
+	.edit-action-btn {
 		padding: 0.35rem 0.75rem;
 		border-radius: 6px;
 		border: 1px solid transparent;
@@ -602,7 +642,7 @@
 		cursor: not-allowed;
 	}
 
-	.reply-action-btn:focus-visible {
+	.edit-action-btn:focus-visible {
 		outline: 2px solid var(--interactive-accent);
 		outline-offset: 2px;
 	}
@@ -610,6 +650,16 @@
 	@media (max-width: 480px) {
 		.comment-replies {
 			padding-left: 1rem;
+		}
+
+		.comment-reply-header {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.5rem;
+		}
+
+		.comment-reply-actions {
+			align-self: flex-end;
 		}
 	}
 </style>
