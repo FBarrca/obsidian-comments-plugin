@@ -50,6 +50,9 @@
 	let replyError = $state<string | null>(null);
 	let isSubmittingReply = $state(false);
 	let replyTextareaEl = $state<HTMLTextAreaElement | null>(null);
+	let editingReplyId = $state<string | null>(null);
+	let editingReplyText = $state("");
+	let editingReplyError = $state<string | null>(null);
 
 	let canEdit = $derived(
 		Boolean(onEdit) || Boolean(databaseAPI?.updateCommentCommand && editorView),
@@ -290,7 +293,7 @@
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			};
-			localReplies = [...localReplies, newReply];
+			localReplies = [...(localReplies ?? []), newReply];
 
 			replyDraft = "";
 			replyError = null;
@@ -310,6 +313,95 @@
 		} else if (event.key === "Escape") {
 			event.preventDefault();
 			handleCancelReply();
+		}
+	}
+
+	function startEditingReply(replyId: string, currentText: string) {
+		editingReplyId = replyId;
+		editingReplyText = currentText;
+		editingReplyError = null;
+	}
+
+	function cancelEditingReply() {
+		editingReplyId = null;
+		editingReplyText = "";
+		editingReplyError = null;
+	}
+
+	async function saveReplyEdit(replyId: string) {
+		const trimmedText = editingReplyText.trim();
+		if (!trimmedText.length) {
+			editingReplyError = "Reply cannot be empty.";
+			return;
+		}
+
+		try {
+			// Update local state directly
+			localReplies = (localReplies ?? []).map((reply) =>
+				reply.id === replyId
+					? { ...reply, text: trimmedText, updatedAt: new Date() }
+					: reply,
+			);
+
+			// If we have database API, try to persist the change
+			if (databaseAPI?.updateReplyCommand && editorView) {
+				const success = await databaseAPI.updateReplyCommand(
+					editorView,
+					comment.id,
+					replyId,
+					{
+						text: trimmedText,
+					},
+				);
+				if (!success) {
+					editingReplyError = "Failed to update reply.";
+					// Revert local change on failure
+					localReplies = (localReplies ?? []).map((reply) =>
+						reply.id === replyId
+							? { ...reply, text: editingReplyText, updatedAt: reply.updatedAt }
+							: reply,
+					);
+					return;
+				}
+			}
+
+			cancelEditingReply();
+		} catch (error) {
+			console.error("Failed to update reply:", error);
+			editingReplyError = "Failed to update reply.";
+			// Revert local change on error
+			localReplies = (localReplies ?? []).map((reply) =>
+				reply.id === replyId
+					? { ...reply, text: editingReplyText, updatedAt: reply.updatedAt }
+					: reply,
+			);
+		}
+	}
+
+	function deleteReply(replyId: string) {
+		try {
+			// Remove from local state
+			localReplies = (localReplies ?? []).filter((reply) => reply.id !== replyId);
+
+			// If we have database API, try to persist the deletion
+			if (databaseAPI?.removeReplyCommand && editorView) {
+				databaseAPI.removeReplyCommand(editorView, comment.id, replyId);
+			}
+		} catch (error) {
+			console.error("Failed to delete reply:", error);
+			// Note: In a real app, you might want to show an error message here
+		}
+	}
+
+	function handleEditReplyKeydown(event: KeyboardEvent) {
+		if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+			event.preventDefault();
+			if (editingReplyId) {
+				void saveReplyEdit(editingReplyId);
+			}
+		} else if (event.key === "Escape") {
+			event.preventDefault();
+			cancelEditingReply();
 		}
 	}
 
@@ -474,8 +566,91 @@
 		<div class="comment-replies">
 			{#each localReplies as reply (reply.id)}
 				<div class="comment-reply">
-					<div class="comment-reply-author">{reply.author ?? "Anonymous"}</div>
-					<p class="comment-reply-text">{reply.text ?? "(No reply text)"}</p>
+					<div class="comment-reply-header">
+						<div class="comment-reply-actions">
+							<button
+								class="reply-action-btn reply-edit-btn"
+								onclick={() => startEditingReply(reply.id, reply.text ?? "")}
+								title="Edit reply"
+								aria-label="Edit reply"
+							>
+								<svg
+									width="12"
+									height="12"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<path
+										d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+									/>
+									<path
+										d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+									/>
+								</svg>
+							</button>
+							<button
+								class="reply-action-btn reply-delete-btn"
+								onclick={() => deleteReply(reply.id)}
+								title="Delete reply"
+								aria-label="Delete reply"
+							>
+								<svg
+									width="12"
+									height="12"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="3,6 5,6 21,6" />
+									<path
+										d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"
+									/>
+									<line x1="10" y1="11" x2="10" y2="17" />
+									<line x1="14" y1="11" x2="14" y2="17" />
+								</svg>
+							</button>
+						</div>
+					</div>
+
+					{#if editingReplyId === reply.id}
+						<div class="reply-edit">
+							<textarea
+								bind:value={editingReplyText}
+								class="comment-textarea reply-edit-textarea"
+								rows={Math.min(
+									6,
+									Math.max(2, editingReplyText.split("\n").length + 1),
+								)}
+								placeholder="Edit reply"
+								onkeydown={handleEditReplyKeydown}
+							></textarea>
+
+							{#if editingReplyError}
+								<p class="reply-edit-error">{editingReplyError}</p>
+							{/if}
+
+							<div class="reply-edit-actions">
+								<button
+									class="reply-action-btn reply-save-btn"
+									onclick={() => void saveReplyEdit(reply.id)}
+								>
+									Save
+								</button>
+								<button
+									class="reply-action-btn reply-cancel-btn"
+									onclick={cancelEditingReply}
+								>
+									Cancel
+								</button>
+							</div>
+						</div>
+					{:else}
+						<p class="comment-reply-text">{reply.text ?? "(No reply text)"}</p>
+					{/if}
+
 					{#if formatTimestamp(reply.updatedAt ?? reply.createdAt)}
 						<span class="comment-reply-timestamp">
 							{formatTimestamp(reply.updatedAt ?? reply.createdAt)}
@@ -762,6 +937,57 @@
 	.comment-reply-timestamp {
 		color: var(--text-muted);
 		font-size: 0.75rem;
+	}
+
+	.comment-reply-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.25rem;
+	}
+
+	.comment-reply-actions {
+		display: flex;
+		gap: 0.25rem;
+		opacity: 0.7;
+		transition: opacity 0.2s ease;
+	}
+
+	.comment-reply:hover .comment-reply-actions {
+		opacity: 1;
+	}
+
+	.reply-edit-btn:hover {
+		background: var(--interactive-accent);
+		color: var(--text-on-accent);
+	}
+
+	.reply-delete-btn:hover {
+		background: var(--text-error);
+		color: var(--text-on-accent);
+	}
+
+	.reply-edit {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+	}
+
+	.reply-edit-textarea {
+		min-height: 60px;
+	}
+
+	.reply-edit-error {
+		margin: 0;
+		color: var(--text-error);
+		font-size: 0.8rem;
+	}
+
+	.reply-edit-actions {
+		display: flex;
+		gap: 0.5rem;
+		justify-content: flex-end;
 	}
 
 	.reply-footer {
