@@ -336,16 +336,11 @@
 		}
 
 		try {
-			// Update local state directly
-			localReplies = (localReplies ?? []).map((reply) =>
-				reply.id === replyId
-					? { ...reply, text: trimmedText, updatedAt: new Date() }
-					: reply,
-			);
+			let updateSucceeded = false;
 
-			// If we have database API, try to persist the change
+			// If we have database API, try to persist the change first
 			if (databaseAPI?.updateReplyCommand && editorView) {
-				const success = await databaseAPI.updateReplyCommand(
+				updateSucceeded = await databaseAPI.updateReplyCommand(
 					editorView,
 					comment.id,
 					replyId,
@@ -353,39 +348,50 @@
 						text: trimmedText,
 					},
 				);
-				if (!success) {
-					editingReplyError = "Failed to update reply.";
-					// Revert local change on failure
-					localReplies = (localReplies ?? []).map((reply) =>
-						reply.id === replyId
-							? { ...reply, text: editingReplyText, updatedAt: reply.updatedAt }
-							: reply,
-					);
-					return;
-				}
+			} else {
+				// If no database API, just update local state
+				updateSucceeded = true;
 			}
 
-			cancelEditingReply();
+			if (updateSucceeded) {
+				// Update local state after successful database update
+				localReplies = (localReplies ?? []).map((reply) =>
+					reply.id === replyId
+						? { ...reply, text: trimmedText, updatedAt: new Date() }
+						: reply,
+				);
+				cancelEditingReply();
+			} else {
+				editingReplyError = "Failed to update reply.";
+			}
 		} catch (error) {
 			console.error("Failed to update reply:", error);
 			editingReplyError = "Failed to update reply.";
-			// Revert local change on error
-			localReplies = (localReplies ?? []).map((reply) =>
-				reply.id === replyId
-					? { ...reply, text: editingReplyText, updatedAt: reply.updatedAt }
-					: reply,
-			);
 		}
 	}
 
-	function deleteReply(replyId: string) {
+	async function deleteReply(replyId: string) {
 		try {
-			// Remove from local state
-			localReplies = (localReplies ?? []).filter((reply) => reply.id !== replyId);
+			let deleteSucceeded = false;
 
-			// If we have database API, try to persist the deletion
+			// If we have database API, try to persist the deletion first
 			if (databaseAPI?.removeReplyCommand && editorView) {
-				databaseAPI.removeReplyCommand(editorView, comment.id, replyId);
+				deleteSucceeded = await databaseAPI.removeReplyCommand(
+					editorView,
+					comment.id,
+					replyId,
+				);
+			} else {
+				// If no database API, just remove from local state
+				deleteSucceeded = true;
+			}
+
+			if (deleteSucceeded) {
+				// Remove from local state after successful database deletion
+				localReplies = (localReplies ?? []).filter((reply) => reply.id !== replyId);
+			} else {
+				console.error("Failed to delete reply from database");
+				// Note: In a real app, you might want to show an error message here
 			}
 		} catch (error) {
 			console.error("Failed to delete reply:", error);
@@ -918,12 +924,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
-	}
-
-	.comment-reply-author {
-		font-weight: 600;
-		color: var(--text-normal);
-		font-size: 0.85rem;
 	}
 
 	.comment-reply-text {

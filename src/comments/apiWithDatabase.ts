@@ -200,6 +200,114 @@ export class CommentAPIWithDatabase {
 	}
 
 	/**
+	 * Update a specific reply within a comment
+	 */
+	async updateReplyCommand(
+		view: EditorView,
+		commentId: string,
+		replyId: string,
+		patch: { text?: string },
+	): Promise<boolean> {
+		if (!this.currentFile) {
+			console.error("updateReplyCommand: No current file set");
+			return false;
+		}
+
+		const comment = getCommentById(view, commentId);
+		if (!comment) {
+			console.warn("updateReplyCommand: missing comment", { commentId });
+			return false;
+		}
+
+		const replyIndex = comment.replies?.findIndex((reply) => reply.id === replyId) ?? -1;
+		if (replyIndex === -1) {
+			console.warn("updateReplyCommand: reply not found", { commentId, replyId });
+			return false;
+		}
+
+		// Update the reply
+		const updatedReplies = [...(comment.replies ?? [])];
+		updatedReplies[replyIndex] = {
+			...updatedReplies[replyIndex],
+			...patch,
+			updatedAt: new Date().toISOString(),
+		};
+
+		const next: CommentRange = {
+			...comment,
+			replies: updatedReplies,
+			id: commentId,
+		};
+
+		console.log("updateReplyCommand", { commentId, replyId, patch });
+
+		// Update the editor state
+		view.dispatch({ effects: addOrUpdateComment.of(next) });
+		emitThreadUpdate(view, comment.from);
+
+		// Persist to database
+		try {
+			await this.dbService.upsertComment(next, this.currentFile);
+			console.log("Reply updated in database:", replyId);
+		} catch (error) {
+			console.error("Failed to update reply in database:", error);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Remove a specific reply from a comment
+	 */
+	async removeReplyCommand(
+		view: EditorView,
+		commentId: string,
+		replyId: string,
+	): Promise<boolean> {
+		if (!this.currentFile) {
+			console.error("removeReplyCommand: No current file set");
+			return false;
+		}
+
+		const comment = getCommentById(view, commentId);
+		if (!comment) {
+			console.warn("removeReplyCommand: missing comment", { commentId });
+			return false;
+		}
+
+		const replyIndex = comment.replies?.findIndex((reply) => reply.id === replyId) ?? -1;
+		if (replyIndex === -1) {
+			console.warn("removeReplyCommand: reply not found", { commentId, replyId });
+			return false;
+		}
+
+		// Remove the reply
+		const updatedReplies = (comment.replies ?? []).filter((reply) => reply.id !== replyId);
+
+		const next: CommentRange = {
+			...comment,
+			replies: updatedReplies,
+			id: commentId,
+		};
+
+		console.log("removeReplyCommand", { commentId, replyId });
+
+		// Update the editor state
+		view.dispatch({ effects: addOrUpdateComment.of(next) });
+		emitThreadUpdate(view, comment.from);
+
+		// Persist to database
+		try {
+			await this.dbService.upsertComment(next, this.currentFile);
+			console.log("Reply removed from database:", replyId);
+		} catch (error) {
+			console.error("Failed to remove reply from database:", error);
+		}
+
+		return true;
+	}
+
+	/**
 	 * Scroll to a comment
 	 */
 	scrollToComment(view: EditorView, id: string): boolean {
